@@ -23,6 +23,8 @@
     --accent-soft: #e8f1fc;
     --good: #006300;
     --bad: #d03b3b;
+    --orange: #eb6834;
+    --orange-dark: #d95926;
     --grid: #e1e0d9;
     --radius: 18px;
     --sab: env(safe-area-inset-bottom, 0px);
@@ -73,11 +75,16 @@
   /* ---------- Setup ---------- */
   .field { margin-bottom: 12px; }
   .field label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
-  .field input {
+  .field input, .field select {
     width: 100%; padding: 14px; border-radius: 14px; border: 1px solid var(--hairline);
-    background: var(--bg); font-size: 16px; outline: none;
+    background: var(--bg); font-size: 16px; outline: none; color: var(--ink);
+    -webkit-appearance: none; appearance: none; font-family: inherit;
   }
-  .field input:focus { border-color: var(--accent); background: #fff; }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: #fff; }
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field { flex: 1; min-width: 0; }
+  .chk { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink-2); padding: 4px 0 12px; }
+  .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
   .err { color: var(--bad); font-size: 14px; margin: 8px 0; min-height: 18px; }
 
   /* ---------- Entry ---------- */
@@ -88,7 +95,9 @@
   .seg button { flex: 1; padding: 10px 0; border-radius: 11px; font-weight: 700; font-size: 15px; color: var(--muted); transition: background .15s, color .15s; }
   .seg button.on { background: var(--accent); color: #fff; }
   .seg button.on.income { background: var(--good); }
+  .seg button.on.invest { background: var(--orange-dark); }
   .amount.set.income { color: var(--good); }
+  .amount.set.invest { color: var(--orange-dark); }
   .amount {
     text-align: center; font-size: 56px; font-weight: 800; letter-spacing: -.03em;
     padding: 10px 0 22px; color: var(--muted); transition: color .15s;
@@ -175,6 +184,7 @@
   .cat-row .fill { height: 100%; border-radius: 3px; background: var(--accent); }
   .cat-row .val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .cat-row .fill.inc { background: #008300; }
+  .cat-row .fill.invest { background: var(--orange); }
   .cat-hidden { display: none; }
   .cat-list.open .cat-hidden { display: flex; }
   .cat-more {
@@ -249,6 +259,7 @@
   <div class="seg" id="entry-mode">
     <button data-mode="kosten" class="on">Kosten</button>
     <button data-mode="einnahmen">Einnahmen</button>
+    <button data-mode="invest">Invest</button>
   </div>
 
   <div class="amount" id="amount-display">0,00<span class="cur">€</span></div>
@@ -285,6 +296,17 @@
   <div id="ov-body"><div class="spin"></div></div>
 </section>
 
+<!-- ================= DAUERAUFTRÄGE ================= -->
+<section class="screen" id="scr-recurring">
+  <h1>Daueraufträge</h1>
+  <p class="sub">Regelmäßige Buchungen & Portfoliostand.</p>
+  <div class="seg" id="rec-mode">
+    <button data-rmode="orders" class="on">Daueraufträge</button>
+    <button data-rmode="portfolio">Portfoliostand</button>
+  </div>
+  <div id="rec-body"><div class="spin"></div></div>
+</section>
+
 <!-- ================= EXPORT ================= -->
 <section class="screen" id="scr-export">
   <h1>Export</h1>
@@ -319,6 +341,10 @@
   <button data-scr="overview">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="20" x2="5" y2="12"></line><line x1="12" y1="20" x2="12" y2="6"></line><line x1="19" y1="20" x2="19" y2="10"></line></svg>
     Übersicht
+  </button>
+  <button data-scr="recurring">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+    Daueraufträge
   </button>
   <button data-scr="export">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -366,12 +392,18 @@ const INCOME_CATS = [
   { key: 'Gehalt',             label: 'Gehalt', emoji: '💰' },
   { key: 'Kindergeld',         label: 'Kindergeld', emoji: '👶' },
   { key: 'Unterhalt',          label: 'Unterhalt', emoji: '🤝' },
-  { key: 'Sonstige Einnahmen', label: 'Sonstige Einnahmen', emoji: '🪙' },
+  { key: 'Sonstige Einnahmen', label: 'Sonstige Einnahmen', emoji: '💶' },
 ];
-const CAT_BY_KEY = Object.fromEntries([...CATEGORIES, ...INCOME_CATS].map(c => [c.key, c]));
+const INVEST_CATS = [
+  { key: 'Investment Aktien', label: 'Aktien / Depot', emoji: '📈' },
+  { key: 'Investment Crypto', label: 'Crypto', emoji: '🪙' },
+];
+const CAT_BY_KEY = Object.fromEntries([...CATEGORIES, ...INCOME_CATS, ...INVEST_CATS].map(c => [c.key, c]));
 const INCOME_KEYS = new Set(INCOME_CATS.map(c => c.key));
+const INVEST_KEYS = new Set(INVEST_CATS.map(c => c.key));
 const isIncome = kat => INCOME_KEYS.has(kat);
-let entryMode = 'kosten'; // 'kosten' | 'einnahmen'
+const isInvest = kat => INVEST_KEYS.has(kat);
+let entryMode = 'kosten'; // 'kosten' | 'einnahmen' | 'invest'
 const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 
@@ -384,6 +416,9 @@ let selMonth = monthKey(new Date()); // 'YYYY-MM'
 let demoStore = null;
 let outbox = [];             // noch nicht synchronisierte Einträge
 const catOpen = { exp: false, inc: false }; // "Mehr anzeigen"-Zustand der Kategorie-Karten
+let wealthInfo = null;       // Portfoliostand (kommt mit der Overview-Antwort)
+let recOrders = null;        // Daueraufträge-Cache
+let recMode = 'orders';      // 'orders' | 'portfolio'
 
 try { cfg = JSON.parse(localStorage.getItem('cfg') || 'null'); } catch (e) {}
 try { entries = JSON.parse(localStorage.getItem('cache') || 'null'); } catch (e) {}
@@ -457,11 +492,35 @@ function demoApi(action, extra) {
       demoStore.push({ id: 'demo-miete-' + m, datum: monthKey(base) + '-01', kategorie: 'Miete', betrag: 650, beschreibung: 'Miete' });
       demoStore.push({ id: 'demo-gehalt-' + m, datum: monthKey(base) + '-01', kategorie: 'Gehalt', betrag: 2650, beschreibung: 'Gehalt' });
       demoStore.push({ id: 'demo-kg-' + m, datum: monthKey(base) + '-01', kategorie: 'Kindergeld', betrag: 255, beschreibung: 'Kindergeld' });
+      demoStore.push({ id: 'demo-etf-' + m, datum: monthKey(base) + '-02', kategorie: 'Investment Aktien', betrag: 200, beschreibung: 'ETF-Sparplan (Dauerauftrag)' });
+      demoStore.push({ id: 'demo-btc-' + m, datum: monthKey(base) + '-02', kategorie: 'Investment Crypto', betrag: 50, beschreibung: 'Bitcoin-Sparplan (Dauerauftrag)' });
     }
+  }
+  if (!demoApi._wealth) {
+    demoApi._wealth = { monat: monthKey(new Date()), konto: 3240.5, aktien: 5480, crypto: 820, summe: 9541.5, prevSumme: 9210 };
+    demoApi._orders = [
+      { id: 'demo-o1', typ: 'investment', kategorie: 'Investment Aktien', betrag: 200, beschreibung: 'ETF-Sparplan', von: '2026-01', bis: '', lastApplied: monthKey(new Date()) },
+      { id: 'demo-o2', typ: 'kosten', kategorie: 'Divers', betrag: 12.99, beschreibung: 'Spotify', von: '2026-01', bis: '', lastApplied: monthKey(new Date()) },
+    ];
   }
   if (action === 'ping') return { ok: true, sheetName: 'Demo-Daten', sheetUrl: '#' };
   if (action === 'overview') {
-    return { ok: true, sheetUrl: '#', entries: [...demoStore].sort((a, b) => b.datum.localeCompare(a.datum)) };
+    return { ok: true, sheetUrl: '#', wealth: demoApi._wealth, entries: [...demoStore].sort((a, b) => b.datum.localeCompare(a.datum)) };
+  }
+  if (action === 'extras') return { ok: true, orders: demoApi._orders, wealth: demoApi._wealth };
+  if (action === 'recurring_add') {
+    const o = { id: 'demo-o' + Date.now(), typ: extra.typ, kategorie: extra.kategorie || TYP_META[extra.typ].cats[0].key, betrag: extra.betrag, beschreibung: extra.beschreibung, von: extra.von, bis: extra.bis, lastApplied: '' };
+    demoApi._orders.push(o);
+    return { ok: true, id: o.id, orders: demoApi._orders };
+  }
+  if (action === 'recurring_delete') {
+    demoApi._orders = demoApi._orders.filter(x => x.id !== extra.id);
+    return { ok: true, orders: demoApi._orders };
+  }
+  if (action === 'wealth_update') {
+    ['konto', 'aktien', 'crypto'].forEach(k => { if (typeof extra[k] === 'number') demoApi._wealth[k] = extra[k]; });
+    demoApi._wealth.summe = (demoApi._wealth.konto || 0) + (demoApi._wealth.aktien || 0) + (demoApi._wealth.crypto || 0);
+    return { ok: true, wealth: demoApi._wealth };
   }
   if (action === 'add') {
     const id = 'demo-' + Date.now();
@@ -483,6 +542,7 @@ function show(scr) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.scr === scr));
   $('nav').style.display = scr === 'setup' ? 'none' : 'flex';
   if (scr === 'overview') loadOverview();
+  if (scr === 'recurring') loadRecurring();
   if (scr === 'export') fillStatus();
   window.scrollTo(0, 0);
 }
@@ -523,6 +583,7 @@ $('btn-logout').addEventListener('click', () => {
   localStorage.removeItem('cfg');
   localStorage.removeItem('cache');
   cfg = null; entries = null; demoStore = null;
+  wealthInfo = null; recOrders = null; demoApi._wealth = null;
   show('setup');
 });
 
@@ -534,6 +595,7 @@ function renderAmount() {
   el.innerHTML = esc(whole.toLocaleString('de-DE')) + ',' + frac + '<span class="cur">€</span>';
   el.classList.toggle('set', cents > 0);
   el.classList.toggle('income', entryMode === 'einnahmen');
+  el.classList.toggle('invest', entryMode === 'invest');
   updateSubmit();
 }
 function updateSubmit() {
@@ -555,7 +617,7 @@ $('keypad').addEventListener('click', e => {
 const catList = $('cat-list');
 function renderCatList() {
   catList.innerHTML = '';
-  (entryMode === 'einnahmen' ? INCOME_CATS : CATEGORIES).forEach(c => {
+  (entryMode === 'einnahmen' ? INCOME_CATS : entryMode === 'invest' ? INVEST_CATS : CATEGORIES).forEach(c => {
     const b = document.createElement('button');
     b.className = 'cat-item' + (selectedCat === c.key ? ' sel' : '');
     b.dataset.key = c.key;
@@ -582,6 +644,7 @@ document.querySelectorAll('#entry-mode button').forEach(b => b.addEventListener(
     const on = x.dataset.mode === entryMode;
     x.classList.toggle('on', on);
     x.classList.toggle('income', on && entryMode === 'einnahmen');
+    x.classList.toggle('invest', on && entryMode === 'invest');
   });
   selectedCat = null;
   $('cat-emoji').textContent = '🏷️';
@@ -672,6 +735,7 @@ async function loadOverview() {
   try {
     const data = await api('overview');
     entries = data.entries;
+    if (data.wealth !== undefined) wealthInfo = data.wealth;
     if (cfg.url !== 'demo') {
       localStorage.setItem('cache', JSON.stringify(entries));
       if (data.sheetUrl) { cfg.sheetUrl = data.sheetUrl; localStorage.setItem('cfg', JSON.stringify(cfg)); }
@@ -702,6 +766,7 @@ function renderOverview() {
   // Balken/Summen = nur Kosten; Einnahmen separat
   const totals = keys.map(k => byMonth[k].reduce((s, e) => s + (isIncome(e.kategorie) ? 0 : e.betrag), 0));
   const incTotals = keys.map(k => byMonth[k].reduce((s, e) => s + (isIncome(e.kategorie) ? e.betrag : 0), 0));
+  const invTotals = keys.map(k => byMonth[k].reduce((s, e) => s + (isInvest(e.kategorie) ? e.betrag : 0), 0));
   const selIdx = keys.indexOf(selMonth);
   const selEntries = byMonth[selMonth];
   const selTotal = totals[selIdx];
@@ -723,6 +788,10 @@ function renderOverview() {
     incomeLine = '<div class="cmp">Einnahmen: <span class="down">' + EUR.format(selIncome) + '</span> · Saldo: ' +
       '<span class="' + (saldo >= 0 ? 'down' : 'up') + '">' + (saldo >= 0 ? '+' : '−') + EUR.format(Math.abs(saldo)) + '</span></div>';
   }
+  const selInvest = invTotals[selIdx];
+  if (selInvest > 0) {
+    incomeLine += '<div class="cmp">davon investiert: <span style="color:var(--orange-dark);font-weight:700">' + EUR.format(selInvest) + '</span></div>';
+  }
 
   // Kategorien des Monats: Kosten und Einnahmen getrennt aufsummieren
   const expTotalsByCat = {}, incTotalsByCat = {};
@@ -739,9 +808,10 @@ function renderOverview() {
     const maxVal = rows[0][1];
     const rowHtml = ([k, v], i) => {
       const c = CAT_BY_KEY[k] || { emoji: '🏷️', label: k };
+      const fillCls = isInvest(k) ? ' invest' : (incStyle ? ' inc' : '');
       return '<div class="cat-row' + (i >= 5 ? ' cat-hidden' : '') + '"><span class="emoji">' + c.emoji + '</span>' +
         '<div class="info"><div class="name">' + esc(c.label) + '</div>' +
-        '<div class="track"><div class="fill' + (incStyle ? ' inc' : '') + '" style="width:' + Math.max(3, Math.round(v / maxVal * 100)) + '%"></div></div></div>' +
+        '<div class="track"><div class="fill' + fillCls + '" style="width:' + Math.max(3, Math.round(v / maxVal * 100)) + '%"></div></div></div>' +
         '<span class="val">' + (incStyle ? '+' : '') + EUR.format(v) + '</span></div>';
     };
     let html = '<div class="cat-list' + (open ? ' open' : '') + '">' + rows.map(rowHtml).join('') + '</div>';
@@ -759,19 +829,44 @@ function renderOverview() {
     const c = CAT_BY_KEY[e.kategorie] || { emoji: '🏷️', label: e.kategorie };
     const d = e.datum.split('-');
     const inc = isIncome(e.kategorie);
+    const amtStyle = inc ? ' style="color:var(--good)"' : (isInvest(e.kategorie) ? ' style="color:var(--orange-dark)"' : '');
     return '<div class="tx"' + (e.pending ? ' style="opacity:.65"' : '') + '><div class="emoji">' + c.emoji + '</div>' +
       '<div class="mid"><div class="t1">' + esc(e.beschreibung || c.label) + '</div>' +
       '<div class="t2">' + d[2] + '.' + d[1] + '. · ' + esc(c.label) + (e.pending ? ' · wird synchronisiert…' : '') + '</div></div>' +
-      '<span class="amt"' + (inc ? ' style="color:var(--good)"' : '') + '>' + (inc ? '+' : '') + EUR.format(e.betrag) + '</span>' +
+      '<span class="amt"' + amtStyle + '>' + (inc ? '+' : '') + EUR.format(e.betrag) + '</span>' +
       '<button class="del" data-id="' + esc(e.id) + '" aria-label="Löschen">' +
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>' +
       '</button></div>';
   }).join('') : '<div class="empty">Keine Einträge.</div>';
 
   const hasInc = incTotals.some(v => v > 0);
-  const legend = hasInc
-    ? '<div class="leg"><span><i style="background:#2a78d6"></i>Kosten</span><span><i style="background:#008300"></i>Einnahmen</span></div>'
-    : '';
+  const hasInv = invTotals.some(v => v > 0);
+  let legend = '';
+  if (hasInc || hasInv) {
+    legend = '<div class="leg"><span><i style="background:#2a78d6"></i>Kosten</span>' +
+      (hasInv ? '<span><i style="background:var(--orange)"></i>Investiert</span>' : '') +
+      (hasInc ? '<span><i style="background:#008300"></i>Einnahmen</span>' : '') + '</div>';
+  }
+
+  // Vermögens-Karte (Portfoliostand aus dem Wealth-Blatt, aktueller Monat)
+  let wealthCard = '';
+  const w = wealthInfo;
+  if (w && [w.konto, w.aktien, w.crypto, w.summe].some(v => typeof v === 'number')) {
+    const wRow = (emoji, name, val) => typeof val === 'number'
+      ? '<div class="cat-row"><span class="emoji">' + emoji + '</span><div class="info"><div class="name">' + name + '</div></div><span class="val">' + EUR.format(val) + '</span></div>'
+      : '';
+    let diff = '';
+    if (typeof w.summe === 'number' && typeof w.prevSumme === 'number' && w.prevSumme > 0) {
+      const dv = w.summe - w.prevSumme;
+      diff = ' <span class="' + (dv >= 0 ? 'down' : 'up') + '" style="font-size:13px">(' + (dv >= 0 ? '+' : '−') + EUR.format(Math.abs(dv)) + ')</span>';
+    }
+    wealthCard = '<div class="card"><div class="section-t">Vermögen · Stand ' + monthLabel(w.monat) + '</div>' +
+      wRow('🏦', 'Bankkonto', w.konto) + wRow('📈', 'Aktien', w.aktien) + wRow('🪙', 'Crypto', w.crypto) +
+      (typeof w.summe === 'number'
+        ? '<div class="cat-row" style="border-top:1px solid var(--hairline);margin-top:4px;padding-top:12px"><span class="emoji">Σ</span><div class="info"><div class="name" style="font-weight:800">Gesamt</div></div><span class="val" style="font-weight:800">' + EUR.format(w.summe) + diff + '</span></div>'
+        : '') +
+      '</div>';
+  }
 
   $('ov-body').innerHTML =
     '<div class="card">' +
@@ -781,10 +876,11 @@ function renderOverview() {
         '<button id="mv-next" ' + (selIdx === keys.length - 1 ? 'disabled' : '') + '>›</button>' +
       '</div>' +
       '<div class="hero"><div class="big">' + EUR.format(selTotal) + '</div><div class="cmp">' + (cmp || 'Gesamtausgaben im Monat.') + '</div>' + incomeLine + '</div>' +
-      legend + barChart(keys, totals, incTotals, selIdx) +
+      legend + barChart(keys, totals, invTotals, incTotals, selIdx) +
     '</div>' +
     '<div class="card"><div class="section-t">Kosten nach Kategorie</div>' + catHtml + '</div>' +
     (hasInc || incRows.length ? '<div class="card"><div class="section-t">Einnahmen nach Kategorie</div>' + incHtml + '</div>' : '') +
+    wealthCard +
     '<div class="card"><div class="section-t">Einträge (' + selEntries.length + ')</div>' + txHtml + '</div>';
 
   $('mv-prev').addEventListener('click', () => { selMonth = keys[selIdx - 1]; renderOverview(); });
@@ -798,8 +894,12 @@ function renderOverview() {
   }));
 }
 
-/** 12-Monats-Balkendiagramm als SVG: Kosten (blau) + ggf. Einnahmen (grün) je Monat, gewählter Monat betont. */
-function barChart(keys, exp, inc, selIdx) {
+/**
+ * 12-Monats-Balkendiagramm als SVG.
+ * Kostenbalken = gestapelt: unten blau (normale Kosten), oben orange (Investitionen);
+ * daneben ggf. grüner Einnahmen-Balken. Gewählter Monat betont.
+ */
+function barChart(keys, exp, inv, inc, selIdx) {
   const W = 520, H = 190, padL = 8, padR = 8, padT = 14, padB = 24;
   const iw = W - padL - padR, ih = H - padT - padB;
   const hasInc = inc.some(v => v > 0);
@@ -813,28 +913,36 @@ function barChart(keys, exp, inc, selIdx) {
     grid += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#e1e0d9" stroke-width="1"/>';
   });
 
-  const bar = (k, x, val, sel, colSel, col) => {
-    if (val <= 0) return '';
-    const h = Math.max(3, ih * val / max);
-    return '<rect data-m="' + k + '" x="' + x + '" y="' + (padT + ih - h) + '" width="' + bw + '" height="' + h +
-      '" rx="4" fill="' + (sel ? colSel : col) + '"' + (sel ? '' : ' opacity="0.55"') + ' style="cursor:pointer"/>';
+  const rect = (k, x, y, h, fill, sel) =>
+    '<rect data-m="' + k + '" x="' + x + '" y="' + y + '" width="' + bw + '" height="' + h +
+    '" rx="4" fill="' + fill + '"' + (sel ? '' : ' opacity="0.55"') + ' style="cursor:pointer"/>';
+
+  // Gestapelter Kostenbalken: blau unten, orange (Invest) oben mit 2px Lücke
+  const costBar = (k, x, costVal, invVal, sel) => {
+    let out = '';
+    const hBlue = costVal - invVal > 0 ? Math.max(3, ih * (costVal - invVal) / max) : 0;
+    const hOr = invVal > 0 ? Math.max(3, ih * invVal / max) : 0;
+    const base = padT + ih;
+    if (hBlue) out += rect(k, x, base - hBlue, hBlue, sel ? '#1c5cab' : '#2a78d6', sel);
+    if (hOr) out += rect(k, x, base - hBlue - (hBlue ? 2 : 0) - hOr, hOr, sel ? '#d95926' : '#eb6834', sel);
+    return out;
   };
 
   keys.forEach((k, i) => {
     const sel = i === selIdx;
     const cx = padL + step * i + step / 2; // Monatsmitte
     if (hasInc) {
-      bars += bar(k, cx - bw - 1, exp[i], sel, '#1c5cab', '#2a78d6') +
-              bar(k, cx + 1, inc[i], sel, '#006300', '#008300');
+      bars += costBar(k, cx - bw - 1, exp[i], inv[i], sel);
+      if (inc[i] > 0) bars += rect(k, cx + 1, padT + ih - Math.max(3, ih * inc[i] / max), Math.max(3, ih * inc[i] / max), sel ? '#006300' : '#008300', sel);
     } else {
-      bars += bar(k, cx - bw / 2, exp[i], sel, '#1c5cab', '#2a78d6');
+      bars += costBar(k, cx - bw / 2, exp[i], inv[i], sel);
     }
     bars += '<rect data-m="' + k + '" x="' + (padL + step * i) + '" y="' + padT + '" width="' + step + '" height="' + ih + '" fill="transparent" style="cursor:pointer"/>';
     labels += '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10.5" fill="' +
       (sel ? '#0b0b0b' : '#898781') + '" font-weight="' + (sel ? '700' : '400') + '">' + monthLabel(k, true) + '</text>';
   });
 
-  return '<svg class="bars" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Kosten und Einnahmen pro Monat">' +
+  return '<svg class="bars" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Kosten, Investitionen und Einnahmen pro Monat">' +
     grid + bars + labels +
     '<line x1="' + padL + '" y1="' + (padT + ih) + '" x2="' + (W - padR) + '" y2="' + (padT + ih) + '" stroke="#c3c2b7" stroke-width="1"/>' +
     '</svg>';
@@ -863,6 +971,183 @@ async function deleteEntry(id) {
     toast('Eintrag gelöscht');
   } catch (err) {
     toast('Fehler: ' + err.message);
+  }
+}
+
+/* ================= Daueraufträge & Portfoliostand ================= */
+const TYP_META = {
+  kosten:     { label: 'Kosten',    color: 'var(--accent)',      cats: CATEGORIES },
+  einnahmen:  { label: 'Einnahmen', color: 'var(--good)',        cats: INCOME_CATS },
+  investment: { label: 'Invest',    color: 'var(--orange-dark)', cats: INVEST_CATS },
+};
+function fmtYm(ym) {
+  if (!ym) return '';
+  const [y, m] = ym.split('-').map(Number);
+  return MONTHS[m - 1].slice(0, 3) + ' ' + y;
+}
+function parseAmount(s) {
+  const n = parseFloat(String(s).replace(/\./g, '').replace(',', '.'));
+  return isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}
+function parseAmountAllowZero(s) {
+  if (String(s).trim() === '') return null;
+  const n = parseFloat(String(s).replace(/\./g, '').replace(',', '.'));
+  return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
+
+document.querySelectorAll('#rec-mode button').forEach(b => b.addEventListener('click', () => {
+  if (recMode === b.dataset.rmode) return;
+  recMode = b.dataset.rmode;
+  document.querySelectorAll('#rec-mode button').forEach(x => x.classList.toggle('on', x.dataset.rmode === recMode));
+  renderRecurring();
+}));
+
+async function loadRecurring() {
+  if (recOrders === null) $('rec-body').innerHTML = '<div class="spin"></div>';
+  else renderRecurring();
+  try {
+    const data = await api('extras');
+    recOrders = data.orders || [];
+    if (data.wealth !== undefined) wealthInfo = data.wealth;
+    renderRecurring();
+  } catch (err) {
+    if (recOrders === null) $('rec-body').innerHTML = '<div class="card empty">Konnte Daten nicht laden.<br>' + esc(err.message) + '</div>';
+    else toast('Aktualisierung fehlgeschlagen: ' + err.message);
+  }
+}
+
+function renderRecurring() {
+  if (!$('scr-recurring').classList.contains('active')) return;
+  if (recMode === 'portfolio') return renderPortfolio();
+
+  const orders = recOrders || [];
+  const trash = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
+  const list = orders.length ? orders.map(o => {
+    const c = CAT_BY_KEY[o.kategorie] || { emoji: '🏷️', label: o.kategorie };
+    const t = TYP_META[o.typ] || TYP_META.kosten;
+    return '<div class="tx"><div class="emoji">' + c.emoji + '</div>' +
+      '<div class="mid"><div class="t1">' + esc(o.beschreibung) + '</div>' +
+      '<div class="t2">monatlich · ' + fmtYm(o.von) + ' – ' + (o.bis ? fmtYm(o.bis) : 'für immer') + ' · ' + esc(c.label) + '</div></div>' +
+      '<span class="amt" style="color:' + t.color + '">' + (o.typ === 'einnahmen' ? '+' : '') + EUR.format(o.betrag) + '</span>' +
+      '<button class="del" data-rid="' + esc(o.id) + '" aria-label="Löschen">' + trash + '</button></div>';
+  }).join('') : '<div class="empty">Noch keine Daueraufträge.</div>';
+
+  const thisYm = monthKey(new Date());
+  $('rec-body').innerHTML =
+    '<div class="card"><div class="section-t">Neuer Dauerauftrag</div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label for="rec-typ">Typ</label><select id="rec-typ">' +
+          '<option value="kosten">Kosten</option><option value="einnahmen">Einnahmen</option><option value="investment">Invest</option></select></div>' +
+        '<div class="field"><label for="rec-betrag">Betrag (€ / Monat)</label><input id="rec-betrag" type="text" inputmode="decimal" placeholder="0,00"></div>' +
+      '</div>' +
+      '<div class="field"><label for="rec-desc">Beschreibung *</label><input id="rec-desc" type="text" placeholder="z. B. Spotify, Miete, ETF-Sparplan"></div>' +
+      '<div class="field"><label for="rec-kat">Kategorie (optional)</label><select id="rec-kat"></select></div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label for="rec-von">Ab</label><input id="rec-von" type="month" value="' + thisYm + '"></div>' +
+        '<div class="field"><label for="rec-bis">Bis</label><input id="rec-bis" type="month" disabled></div>' +
+      '</div>' +
+      '<label class="chk"><input type="checkbox" id="rec-forever" checked> Für immer (kein Enddatum)</label>' +
+      '<div class="err" id="rec-err"></div>' +
+      '<button class="btn" id="rec-save">Dauerauftrag anlegen</button>' +
+    '</div>' +
+    '<div class="card"><div class="section-t">Aktive Daueraufträge (' + orders.length + ')</div>' + list + '</div>';
+
+  const fillKats = () => {
+    const typ = $('rec-typ').value;
+    $('rec-kat').innerHTML = '<option value="">Automatisch</option>' +
+      TYP_META[typ].cats.map(c => '<option value="' + esc(c.key) + '">' + c.emoji + ' ' + esc(c.label) + '</option>').join('');
+  };
+  fillKats();
+  $('rec-typ').addEventListener('change', fillKats);
+  $('rec-forever').addEventListener('change', () => { $('rec-bis').disabled = $('rec-forever').checked; });
+  $('rec-save').addEventListener('click', saveRecurring);
+  document.querySelectorAll('#rec-body .del').forEach(b => b.addEventListener('click', () => deleteRecurring(b.dataset.rid)));
+}
+
+async function saveRecurring() {
+  const err = $('rec-err');
+  err.textContent = '';
+  const betrag = parseAmount($('rec-betrag').value);
+  const beschreibung = $('rec-desc').value.trim();
+  const von = $('rec-von').value;
+  const bis = $('rec-forever').checked ? '' : $('rec-bis').value;
+  if (!betrag) { err.textContent = 'Bitte einen gültigen Betrag eingeben.'; return; }
+  if (!beschreibung) { err.textContent = 'Die Beschreibung ist Pflicht.'; return; }
+  if (!/^\d{4}-\d{2}$/.test(von)) { err.textContent = 'Bitte „Ab"-Monat wählen.'; return; }
+  if (!$('rec-forever').checked && !/^\d{4}-\d{2}$/.test(bis)) { err.textContent = 'Bitte „Bis"-Monat wählen oder „Für immer" anhaken.'; return; }
+  if (bis && bis < von) { err.textContent = '„Bis" liegt vor „Ab".'; return; }
+
+  const btn = $('rec-save');
+  btn.disabled = true; btn.textContent = 'Speichere…';
+  try {
+    const data = await api('recurring_add', {
+      typ: $('rec-typ').value, betrag, beschreibung,
+      kategorie: $('rec-kat').value, von, bis,
+    });
+    recOrders = data.orders || recOrders;
+    entries = null; localStorage.removeItem('cache'); // ggf. sofort gebuchte Einträge
+    toast('Dauerauftrag angelegt');
+    renderRecurring();
+  } catch (e2) {
+    err.textContent = 'Fehler: ' + e2.message;
+    btn.disabled = false; btn.textContent = 'Dauerauftrag anlegen';
+  }
+}
+
+async function deleteRecurring(id) {
+  const o = (recOrders || []).find(x => x.id === id);
+  if (!o) return;
+  if (!confirm('Dauerauftrag löschen?\n' + esc(o.beschreibung) + ' · ' + EUR.format(o.betrag) + '/Monat\n(Bereits gebuchte Einträge bleiben bestehen.)')) return;
+  try {
+    const data = await api('recurring_delete', { id });
+    recOrders = data.orders || (recOrders || []).filter(x => x.id !== id);
+    toast('Dauerauftrag gelöscht');
+    renderRecurring();
+  } catch (err) {
+    toast('Fehler: ' + err.message);
+  }
+}
+
+function renderPortfolio() {
+  const w = wealthInfo || {};
+  const val = v => typeof v === 'number' ? String(v.toFixed(2)).replace('.', ',') : '';
+  $('rec-body').innerHTML =
+    '<div class="card"><div class="section-t">Portfoliostand · ' + (w.monat ? monthLabel(w.monat) : 'aktueller Monat') + '</div>' +
+      '<div class="field"><label for="pf-konto">🏦 Bankkonto (€)</label><input id="pf-konto" type="text" inputmode="decimal" placeholder="–" value="' + val(w.konto) + '"></div>' +
+      '<div class="field"><label for="pf-aktien">📈 Aktienportfolio (€)</label><input id="pf-aktien" type="text" inputmode="decimal" placeholder="–" value="' + val(w.aktien) + '"></div>' +
+      '<div class="field"><label for="pf-crypto">🪙 Crypto-Portfolio (€)</label><input id="pf-crypto" type="text" inputmode="decimal" placeholder="–" value="' + val(w.crypto) + '"></div>' +
+      (typeof w.summe === 'number' ? '<p class="sub" style="margin:4px 0 12px">Gesamtvermögen laut Sheet: <b>' + EUR.format(w.summe) + '</b></p>' : '') +
+      '<div class="err" id="pf-err"></div>' +
+      '<button class="btn" id="pf-save">Speichern</button>' +
+      '<p class="sub" style="margin-top:12px">Die Werte werden in die Zeile des aktuellen Monats im Wealth-Blatt geschrieben und erscheinen in der Übersicht.</p>' +
+    '</div>';
+  $('pf-save').addEventListener('click', savePortfolio);
+}
+
+async function savePortfolio() {
+  const err = $('pf-err');
+  err.textContent = '';
+  const payload = {};
+  const fields = { konto: 'pf-konto', aktien: 'pf-aktien', crypto: 'pf-crypto' };
+  for (const [k, id] of Object.entries(fields)) {
+    const raw = $(id).value;
+    if (String(raw).trim() === '') continue;
+    const n = parseAmountAllowZero(raw);
+    if (n === null) { err.textContent = 'Ungültiger Betrag bei ' + k + '.'; return; }
+    payload[k] = n;
+  }
+  if (!Object.keys(payload).length) { err.textContent = 'Mindestens einen Wert eintragen.'; return; }
+
+  const btn = $('pf-save');
+  btn.disabled = true; btn.textContent = 'Speichere…';
+  try {
+    const data = await api('wealth_update', payload);
+    if (data.wealth !== undefined) wealthInfo = data.wealth;
+    toast('Portfoliostand aktualisiert');
+    renderRecurring();
+  } catch (e2) {
+    err.textContent = 'Fehler: ' + e2.message;
+    btn.disabled = false; btn.textContent = 'Speichern';
   }
 }
 
