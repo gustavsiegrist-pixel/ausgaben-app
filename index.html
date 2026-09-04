@@ -174,6 +174,16 @@
   .cat-row .track { height: 6px; border-radius: 3px; background: var(--bg); margin-top: 5px; overflow: hidden; }
   .cat-row .fill { height: 100%; border-radius: 3px; background: var(--accent); }
   .cat-row .val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cat-row .fill.inc { background: #008300; }
+  .cat-hidden { display: none; }
+  .cat-list.open .cat-hidden { display: flex; }
+  .cat-more {
+    display: block; width: 100%; text-align: center; margin-top: 6px; padding: 10px;
+    color: var(--accent); font-weight: 700; font-size: 14px; border-radius: 12px;
+  }
+  .cat-more:active { background: var(--bg); }
+  .leg { display: flex; justify-content: center; gap: 16px; font-size: 12px; color: var(--ink-2); font-weight: 600; margin-bottom: 4px; }
+  .leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
   .tx { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--hairline); }
   .tx:last-child { border-bottom: 0; }
   .tx .emoji { font-size: 20px; width: 36px; height: 36px; border-radius: 12px; background: var(--bg); display: flex; align-items: center; justify-content: center; flex: none; }
@@ -373,6 +383,7 @@ let entries = null;          // Cache der Overview-Einträge
 let selMonth = monthKey(new Date()); // 'YYYY-MM'
 let demoStore = null;
 let outbox = [];             // noch nicht synchronisierte Einträge
+const catOpen = { exp: false, inc: false }; // "Mehr anzeigen"-Zustand der Kategorie-Karten
 
 try { cfg = JSON.parse(localStorage.getItem('cfg') || 'null'); } catch (e) {}
 try { entries = JSON.parse(localStorage.getItem('cache') || 'null'); } catch (e) {}
@@ -690,6 +701,7 @@ function renderOverview() {
   });
   // Balken/Summen = nur Kosten; Einnahmen separat
   const totals = keys.map(k => byMonth[k].reduce((s, e) => s + (isIncome(e.kategorie) ? 0 : e.betrag), 0));
+  const incTotals = keys.map(k => byMonth[k].reduce((s, e) => s + (isIncome(e.kategorie) ? e.betrag : 0), 0));
   const selIdx = keys.indexOf(selMonth);
   const selEntries = byMonth[selMonth];
   const selTotal = totals[selIdx];
@@ -712,19 +724,35 @@ function renderOverview() {
       '<span class="' + (saldo >= 0 ? 'down' : 'up') + '">' + (saldo >= 0 ? '+' : '−') + EUR.format(Math.abs(saldo)) + '</span></div>';
   }
 
-  // Kategorien des Monats (nur Kosten)
-  const catTotals = {};
-  selEntries.forEach(e => { if (!isIncome(e.kategorie)) catTotals[e.kategorie] = (catTotals[e.kategorie] || 0) + e.betrag; });
-  const catRows = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
-  const maxCat = catRows.length ? catRows[0][1] : 1;
+  // Kategorien des Monats: Kosten und Einnahmen getrennt aufsummieren
+  const expTotalsByCat = {}, incTotalsByCat = {};
+  selEntries.forEach(e => {
+    const bucket = isIncome(e.kategorie) ? incTotalsByCat : expTotalsByCat;
+    bucket[e.kategorie] = (bucket[e.kategorie] || 0) + e.betrag;
+  });
+  const expRows = Object.entries(expTotalsByCat).sort((a, b) => b[1] - a[1]);
+  const incRows = Object.entries(incTotalsByCat).sort((a, b) => b[1] - a[1]);
 
-  const catHtml = catRows.length ? catRows.map(([k, v]) => {
-    const c = CAT_BY_KEY[k] || { emoji: '🏷️', label: k };
-    return '<div class="cat-row"><span class="emoji">' + c.emoji + '</span>' +
-      '<div class="info"><div class="name">' + esc(c.label) + '</div>' +
-      '<div class="track"><div class="fill" style="width:' + Math.max(3, Math.round(v / maxCat * 100)) + '%"></div></div></div>' +
-      '<span class="val">' + EUR.format(v) + '</span></div>';
-  }).join('') : '<div class="empty">Noch keine Ausgaben in diesem Monat.</div>';
+  // Top 5 anzeigen, Rest hinter "Mehr anzeigen"
+  function catListHtml(rows, incStyle, open, moreId, emptyText) {
+    if (!rows.length) return '<div class="empty">' + emptyText + '</div>';
+    const maxVal = rows[0][1];
+    const rowHtml = ([k, v], i) => {
+      const c = CAT_BY_KEY[k] || { emoji: '🏷️', label: k };
+      return '<div class="cat-row' + (i >= 5 ? ' cat-hidden' : '') + '"><span class="emoji">' + c.emoji + '</span>' +
+        '<div class="info"><div class="name">' + esc(c.label) + '</div>' +
+        '<div class="track"><div class="fill' + (incStyle ? ' inc' : '') + '" style="width:' + Math.max(3, Math.round(v / maxVal * 100)) + '%"></div></div></div>' +
+        '<span class="val">' + (incStyle ? '+' : '') + EUR.format(v) + '</span></div>';
+    };
+    let html = '<div class="cat-list' + (open ? ' open' : '') + '">' + rows.map(rowHtml).join('') + '</div>';
+    if (rows.length > 5) {
+      html += '<button class="cat-more" data-more="' + moreId + '">' +
+        (open ? 'Weniger anzeigen' : 'Mehr anzeigen (' + (rows.length - 5) + ' weitere)') + '</button>';
+    }
+    return html;
+  }
+  const catHtml = catListHtml(expRows, false, catOpen.exp, 'exp', 'Noch keine Ausgaben in diesem Monat.');
+  const incHtml = catListHtml(incRows, true, catOpen.inc, 'inc', 'Noch keine Einnahmen in diesem Monat.');
 
   // Einträge des Monats
   const txHtml = selEntries.length ? selEntries.map(e => {
@@ -740,6 +768,11 @@ function renderOverview() {
       '</button></div>';
   }).join('') : '<div class="empty">Keine Einträge.</div>';
 
+  const hasInc = incTotals.some(v => v > 0);
+  const legend = hasInc
+    ? '<div class="leg"><span><i style="background:#2a78d6"></i>Kosten</span><span><i style="background:#008300"></i>Einnahmen</span></div>'
+    : '';
+
   $('ov-body').innerHTML =
     '<div class="card">' +
       '<div class="month-nav">' +
@@ -748,9 +781,10 @@ function renderOverview() {
         '<button id="mv-next" ' + (selIdx === keys.length - 1 ? 'disabled' : '') + '>›</button>' +
       '</div>' +
       '<div class="hero"><div class="big">' + EUR.format(selTotal) + '</div><div class="cmp">' + (cmp || 'Gesamtausgaben im Monat.') + '</div>' + incomeLine + '</div>' +
-      barChart(keys, totals, selIdx) +
+      legend + barChart(keys, totals, incTotals, selIdx) +
     '</div>' +
-    '<div class="card"><div class="section-t">Nach Kategorie</div>' + catHtml + '</div>' +
+    '<div class="card"><div class="section-t">Kosten nach Kategorie</div>' + catHtml + '</div>' +
+    (hasInc || incRows.length ? '<div class="card"><div class="section-t">Einnahmen nach Kategorie</div>' + incHtml + '</div>' : '') +
     '<div class="card"><div class="section-t">Einträge (' + selEntries.length + ')</div>' + txHtml + '</div>';
 
   $('mv-prev').addEventListener('click', () => { selMonth = keys[selIdx - 1]; renderOverview(); });
@@ -758,15 +792,20 @@ function renderOverview() {
   document.querySelectorAll('#ov-body svg [data-m]').forEach(el =>
     el.addEventListener('click', () => { selMonth = el.dataset.m; renderOverview(); }));
   document.querySelectorAll('#ov-body .del').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.id)));
+  document.querySelectorAll('#ov-body .cat-more').forEach(b => b.addEventListener('click', () => {
+    catOpen[b.dataset.more] = !catOpen[b.dataset.more];
+    renderOverview();
+  }));
 }
 
-/** 12-Monats-Balkendiagramm als SVG (eine Farbreihe, gewählter Monat betont). */
-function barChart(keys, totals, selIdx) {
-  const W = 520, H = 190, padL = 8, padR = 8, padT = 26, padB = 24;
+/** 12-Monats-Balkendiagramm als SVG: Kosten (blau) + ggf. Einnahmen (grün) je Monat, gewählter Monat betont. */
+function barChart(keys, exp, inc, selIdx) {
+  const W = 520, H = 190, padL = 8, padR = 8, padT = 14, padB = 24;
   const iw = W - padL - padR, ih = H - padT - padB;
-  const max = Math.max(...totals, 1);
-  const bw = Math.min(26, iw / keys.length - 8);
+  const hasInc = inc.some(v => v > 0);
+  const max = Math.max(...exp, ...(hasInc ? inc : [0]), 1);
   const step = iw / keys.length;
+  const bw = hasInc ? Math.min(13, step / 2 - 3) : Math.min(26, step - 8);
   let bars = '', labels = '', grid = '';
 
   [0.5, 1].forEach(f => {
@@ -774,23 +813,28 @@ function barChart(keys, totals, selIdx) {
     grid += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#e1e0d9" stroke-width="1"/>';
   });
 
+  const bar = (k, x, val, sel, colSel, col) => {
+    if (val <= 0) return '';
+    const h = Math.max(3, ih * val / max);
+    return '<rect data-m="' + k + '" x="' + x + '" y="' + (padT + ih - h) + '" width="' + bw + '" height="' + h +
+      '" rx="4" fill="' + (sel ? colSel : col) + '"' + (sel ? '' : ' opacity="0.55"') + ' style="cursor:pointer"/>';
+  };
+
   keys.forEach((k, i) => {
-    const h = Math.max(totals[i] > 0 ? 3 : 0, ih * totals[i] / max);
-    const x = padL + step * i + (step - bw) / 2;
-    const y = padT + ih - h;
     const sel = i === selIdx;
-    bars += '<rect data-m="' + k + '" x="' + x + '" y="' + y + '" width="' + bw + '" height="' + Math.max(h, 0.01) +
-      '" rx="4" fill="' + (sel ? '#1c5cab' : '#2a78d6') + '"' + (sel ? '' : ' opacity="0.55"') + ' style="cursor:pointer"/>' +
-      '<rect data-m="' + k + '" x="' + (padL + step * i) + '" y="' + padT + '" width="' + step + '" height="' + ih + '" fill="transparent" style="cursor:pointer"/>';
-    if (sel && totals[i] > 0) {
-      labels += '<text x="' + (x + bw / 2) + '" y="' + (y - 8) + '" text-anchor="middle" font-size="12" font-weight="700" fill="#0b0b0b">' +
-        Math.round(totals[i]).toLocaleString('de-DE') + '&#8202;€</text>';
+    const cx = padL + step * i + step / 2; // Monatsmitte
+    if (hasInc) {
+      bars += bar(k, cx - bw - 1, exp[i], sel, '#1c5cab', '#2a78d6') +
+              bar(k, cx + 1, inc[i], sel, '#006300', '#008300');
+    } else {
+      bars += bar(k, cx - bw / 2, exp[i], sel, '#1c5cab', '#2a78d6');
     }
-    labels += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10.5" fill="' +
+    bars += '<rect data-m="' + k + '" x="' + (padL + step * i) + '" y="' + padT + '" width="' + step + '" height="' + ih + '" fill="transparent" style="cursor:pointer"/>';
+    labels += '<text x="' + cx + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10.5" fill="' +
       (sel ? '#0b0b0b' : '#898781') + '" font-weight="' + (sel ? '700' : '400') + '">' + monthLabel(k, true) + '</text>';
   });
 
-  return '<svg class="bars" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Ausgaben pro Monat">' +
+  return '<svg class="bars" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Kosten und Einnahmen pro Monat">' +
     grid + bars + labels +
     '<line x1="' + padL + '" y1="' + (padT + ih) + '" x2="' + (W - padR) + '" y2="' + (padT + ih) + '" stroke="#c3c2b7" stroke-width="1"/>' +
     '</svg>';
