@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ausgaben</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ausgaben">
+<meta name="theme-color" content="#f7f7f5">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --hairline: rgba(11,11,11,.08);
+    --accent: #2a78d6;
+    --accent-dark: #1c5cab;
+    --accent-soft: #e8f1fc;
+    --good: #006300;
+    --bad: #d03b3b;
+    --grid: #e1e0d9;
+    --radius: 18px;
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sat: env(safe-area-inset-top, 0px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { color-scheme: light; }
+  body {
+    font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; border: 0; background: none; color: inherit; cursor: pointer; }
+  input { font: inherit; }
+
+  .screen { display: none; padding: calc(var(--sat) + 18px) 18px calc(96px + var(--sab)); max-width: 560px; margin: 0 auto; }
+  .screen.active { display: block; }
+  h1 { font-size: 28px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+
+  /* ---------- Tab bar ---------- */
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; justify-content: space-around;
+    background: rgba(255,255,255,.92);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    border-top: 1px solid var(--hairline);
+    padding: 8px 8px calc(8px + var(--sab));
+  }
+  nav button { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); font-size: 11px; font-weight: 600; width: 88px; padding: 4px 0; border-radius: 12px; }
+  nav button.on { color: var(--accent); }
+  nav svg { width: 24px; height: 24px; }
+
+  /* ---------- Cards & buttons ---------- */
+  .card { background: var(--card); border-radius: var(--radius); padding: 18px; box-shadow: 0 1px 2px rgba(11,11,11,.04), 0 4px 16px rgba(11,11,11,.04); margin-bottom: 14px; }
+  .btn {
+    display: block; width: 100%; text-align: center;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 17px;
+    padding: 16px; border-radius: 16px; transition: transform .08s, opacity .15s;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn[disabled] { opacity: .35; pointer-events: none; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent-dark); }
+
+  /* ---------- Setup ---------- */
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 14px; border-radius: 14px; border: 1px solid var(--hairline);
+    background: var(--bg); font-size: 16px; outline: none;
+  }
+  .field input:focus { border-color: var(--accent); background: #fff; }
+  .err { color: var(--bad); font-size: 14px; margin: 8px 0; min-height: 18px; }
+
+  /* ---------- Entry ---------- */
+  .amount {
+    text-align: center; font-size: 56px; font-weight: 800; letter-spacing: -.03em;
+    padding: 26px 0 6px; color: var(--muted); transition: color .15s;
+  }
+  .amount.set { color: var(--ink); }
+  .amount .cur { font-size: 30px; font-weight: 700; color: var(--muted); margin-left: 4px; }
+  .entry-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .picker-btn {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 16px; padding: 14px;
+    box-shadow: 0 1px 2px rgba(11,11,11,.05); font-weight: 600; font-size: 16px;
+  }
+  .picker-btn .emoji { font-size: 22px; }
+  .picker-btn .chev { margin-left: auto; color: var(--muted); }
+  .picker-btn.placeholder { color: var(--muted); font-weight: 500; }
+  input.desc, input.date {
+    width: 100%; background: var(--card); border: 0; border-radius: 16px; padding: 14px;
+    font-size: 16px; box-shadow: 0 1px 2px rgba(11,11,11,.05); outline: none; color: var(--ink);
+  }
+  input.date { width: auto; flex: 0 0 46%; color: var(--ink-2); font-weight: 600; }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 12px; }
+  .keypad button {
+    font-size: 26px; font-weight: 600; padding: 14px 0; border-radius: 16px;
+    background: transparent; transition: background .1s;
+  }
+  .keypad button:active { background: rgba(11,11,11,.06); }
+  .keypad .back svg { width: 26px; height: 26px; vertical-align: -5px; }
+
+  /* ---------- Bottom sheet ---------- */
+  .sheet-wrap { position: fixed; inset: 0; z-index: 60; display: none; }
+  .sheet-wrap.open { display: block; }
+  .sheet-bg { position: absolute; inset: 0; background: rgba(11,11,11,.35); }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--card); border-radius: 22px 22px 0 0;
+    padding: 10px 14px calc(18px + var(--sab)); max-height: 78dvh; overflow-y: auto;
+    animation: up .22s cubic-bezier(.2,.9,.3,1);
+  }
+  @keyframes up { from { transform: translateY(60%); } to { transform: none; } }
+  .sheet h3 { font-size: 17px; font-weight: 800; text-align: center; padding: 10px 0 12px; }
+  .grab { width: 38px; height: 4px; border-radius: 2px; background: var(--grid); margin: 4px auto 0; }
+  .cat-item {
+    width: 100%; display: flex; align-items: center; gap: 14px;
+    padding: 13px 8px; border-radius: 14px; font-size: 16px; font-weight: 600; text-align: left;
+  }
+  .cat-item:active { background: var(--bg); }
+  .cat-item .emoji { font-size: 24px; width: 30px; text-align: center; }
+  .cat-item .check { margin-left: auto; color: var(--accent); font-weight: 800; visibility: hidden; }
+  .cat-item.sel .check { visibility: visible; }
+
+  /* ---------- Success overlay ---------- */
+  .success {
+    position: fixed; inset: 0; z-index: 80; display: none;
+    align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+    background: rgba(255,255,255,.94); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .success.show { display: flex; }
+  .success .ring {
+    width: 84px; height: 84px; border-radius: 50%; background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    animation: pop .35s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  .success svg { width: 42px; height: 42px; stroke: #fff; }
+  .success p { font-weight: 700; font-size: 17px; }
+
+  /* ---------- Overview ---------- */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .month-nav button { font-size: 22px; color: var(--accent); padding: 6px 14px; border-radius: 12px; font-weight: 700; }
+  .month-nav button:disabled { color: var(--grid); }
+  .month-nav .label { font-size: 17px; font-weight: 800; }
+  .hero { text-align: center; padding: 6px 0 14px; }
+  .hero .big { font-size: 42px; font-weight: 800; letter-spacing: -.02em; }
+  .hero .cmp { font-size: 14px; color: var(--muted); margin-top: 4px; }
+  .hero .cmp .up { color: var(--bad); font-weight: 700; }
+  .hero .cmp .down { color: var(--good); font-weight: 700; }
+  .section-t { font-size: 14px; font-weight: 700; color: var(--ink-2); margin: 4px 0 10px; }
+  .bars { width: 100%; display: block; }
+  .cat-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; }
+  .cat-row .emoji { font-size: 20px; width: 26px; text-align: center; }
+  .cat-row .info { flex: 1; min-width: 0; }
+  .cat-row .name { font-size: 14px; font-weight: 600; }
+  .cat-row .track { height: 6px; border-radius: 3px; background: var(--bg); margin-top: 5px; overflow: hidden; }
+  .cat-row .fill { height: 100%; border-radius: 3px; background: var(--accent); }
+  .cat-row .val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tx { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--hairline); }
+  .tx:last-child { border-bottom: 0; }
+  .tx .emoji { font-size: 20px; width: 36px; height: 36px; border-radius: 12px; background: var(--bg); display: flex; align-items: center; justify-content: center; flex: none; }
+  .tx .mid { flex: 1; min-width: 0; }
+  .tx .t1 { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tx .t2 { font-size: 12.5px; color: var(--muted); }
+  .tx .amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tx .del { color: var(--muted); padding: 8px; margin-right: -8px; }
+  .empty { text-align: center; color: var(--muted); padding: 26px 0; font-size: 14px; }
+  .spin {
+    width: 26px; height: 26px; border-radius: 50%; margin: 40px auto;
+    border: 3px solid var(--grid); border-top-color: var(--accent);
+    animation: rot .8s linear infinite;
+  }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  /* ---------- Export ---------- */
+  .exp-icon { width: 64px; height: 64px; border-radius: 20px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; margin: 6px auto 14px; }
+  .exp-icon svg { width: 32px; height: 32px; stroke: var(--accent-dark); }
+  .center { text-align: center; }
+  .linkish { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 15px; }
+  .settings-row { display: flex; justify-content: space-between; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--hairline); font-size: 15px; }
+  .settings-row:last-child { border-bottom: 0; }
+  .settings-row .k { color: var(--ink-2); }
+  .badge { display: inline-block; background: var(--accent-soft); color: var(--accent-dark); font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 10px; margin-left: 8px; vertical-align: 2px; }
+
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(100px + var(--sab));
+    background: var(--ink); color: #fff; font-size: 14px; font-weight: 600;
+    padding: 11px 18px; border-radius: 999px; z-index: 90; opacity: 0; pointer-events: none;
+    transition: opacity .25s; max-width: 86vw; text-align: center;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ================= SETUP ================= -->
+<section class="screen" id="scr-setup">
+  <h1>Ausgaben</h1>
+  <p class="sub">Verbinde die App mit deinem Google Sheet.</p>
+  <div class="card">
+    <div class="field">
+      <label for="cfg-url">Web-App-URL (Apps Script)</label>
+      <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="field">
+      <label for="cfg-pw">Passwort</label>
+      <input id="cfg-pw" type="password" placeholder="Passwort">
+    </div>
+    <div class="err" id="setup-err"></div>
+    <button class="btn" id="btn-connect">Verbinden</button>
+    <div style="height:10px"></div>
+    <button class="btn ghost" id="btn-demo">Demo ansehen</button>
+  </div>
+</section>
+
+<!-- ================= EINTRAGEN ================= -->
+<section class="screen" id="scr-entry">
+  <h1>Neue Ausgabe</h1>
+  <p class="sub" id="entry-sub">Betrag eintippen, Kategorie wählen, fertig.</p>
+
+  <div class="amount" id="amount-display">0,00<span class="cur">€</span></div>
+
+  <div class="entry-row">
+    <button class="picker-btn placeholder" id="btn-cat">
+      <span class="emoji" id="cat-emoji">🏷️</span>
+      <span id="cat-name">Kategorie wählen</span>
+      <span class="chev">›</span>
+    </button>
+  </div>
+  <div class="entry-row">
+    <input class="date" type="date" id="in-date">
+    <input class="desc" type="text" id="in-desc" placeholder="Beschreibung (optional)" enterkeyhint="done">
+  </div>
+
+  <div class="keypad" id="keypad">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button data-k="00">00</button><button data-k="0">0</button>
+    <button data-k="back" class="back" aria-label="Löschen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
+    </button>
+  </div>
+
+  <button class="btn" id="btn-submit" disabled>Eintragen</button>
+</section>
+
+<!-- ================= ÜBERSICHT ================= -->
+<section class="screen" id="scr-overview">
+  <h1>Übersicht</h1>
+  <p class="sub">Deine Ausgaben der letzten 12 Monate.</p>
+  <div id="ov-body"><div class="spin"></div></div>
+</section>
+
+<!-- ================= EXPORT ================= -->
+<section class="screen" id="scr-export">
+  <h1>Export</h1>
+  <p class="sub">Deine Daten gehören dir.</p>
+  <div class="card center">
+    <div class="exp-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    </div>
+    <p style="font-weight:700; font-size:17px; margin-bottom:6px;">Excel-Datei</p>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:16px;">Lädt das komplette Sheet mit allen Einträgen, Formeln und Blättern als .xlsx herunter.</p>
+    <button class="btn" id="btn-export">Excel herunterladen</button>
+  </div>
+  <div class="card center">
+    <a class="linkish" id="lnk-sheet" href="#" target="_blank" rel="noopener">Google Sheet im Browser öffnen ↗</a>
+  </div>
+  <div class="card">
+    <div class="settings-row"><span class="k">Status</span><span id="st-status">–</span></div>
+    <div class="settings-row"><span class="k">Sheet</span><span id="st-sheet">–</span></div>
+    <div class="settings-row">
+      <span class="k">Verbindung</span>
+      <button class="linkish" id="btn-logout" style="background:none">Zurücksetzen</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= NAV ================= -->
+<nav id="nav" style="display:none">
+  <button data-scr="entry" class="on">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+    Eintragen
+  </button>
+  <button data-scr="overview">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="20" x2="5" y2="12"></line><line x1="12" y1="20" x2="12" y2="6"></line><line x1="19" y1="20" x2="19" y2="10"></line></svg>
+    Übersicht
+  </button>
+  <button data-scr="export">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    Export
+  </button>
+</nav>
+
+<!-- Kategorie-Sheet -->
+<div class="sheet-wrap" id="cat-sheet">
+  <div class="sheet-bg"></div>
+  <div class="sheet">
+    <div class="grab"></div>
+    <h3>Kategorie</h3>
+    <div id="cat-list"></div>
+  </div>
+</div>
+
+<!-- Erfolg -->
+<div class="success" id="success">
+  <div class="ring">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+  </div>
+  <p id="success-txt">Eingetragen!</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+/* ================= Konstanten ================= */
+const CATEGORIES = [
+  { key: 'Lebensmittel / Haushalt',  label: 'Lebensmittel & Haushalt', emoji: '🛒' },
+  { key: 'Essen/Alkohol(draußen)',   label: 'Essen & Trinken (draußen)', emoji: '🍕' },
+  { key: 'Freizeit',                 label: 'Freizeit', emoji: '🎉' },
+  { key: 'Benzin',                   label: 'Benzin', emoji: '⛽' },
+  { key: 'Carsharing / Uber',        label: 'Carsharing & Uber', emoji: '🚗' },
+  { key: 'Klamotten',                label: 'Klamotten', emoji: '👕' },
+  { key: 'Reisen',                   label: 'Reisen', emoji: '✈️' },
+  { key: 'Geschenke',                label: 'Geschenke', emoji: '🎁' },
+  { key: 'Miete',                    label: 'Miete', emoji: '🏠' },
+  { key: 'Divers',                   label: 'Divers', emoji: '📦' },
+];
+const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
+const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+
+/* ================= State ================= */
+let cfg = null;              // { url, password } | { url:'demo' }
+let cents = 0;               // Betrag in Cent
+let selectedCat = null;      // key
+let entries = null;          // Cache der Overview-Einträge
+let selMonth = monthKey(new Date()); // 'YYYY-MM'
+let demoStore = null;
+
+try { cfg = JSON.parse(localStorage.getItem('cfg') || 'null'); } catch (e) {}
+try { entries = JSON.parse(localStorage.getItem('cache') || 'null'); } catch (e) {}
+
+/* ================= Helpers ================= */
+const $ = id => document.getElementById(id);
+function monthKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function todayIso() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ================= API ================= */
+async function api(action, extra = {}) {
+  if (cfg && cfg.url === 'demo') return demoApi(action, extra);
+  const res = await fetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, password: cfg.password, ...extra }),
+    redirect: 'follow',
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error === 'auth' ? 'Falsches Passwort.' : (data.message || data.error || 'Fehler'));
+  return data;
+}
+
+/* ================= Demo-Modus ================= */
+function demoApi(action, extra) {
+  if (!demoStore) {
+    demoStore = [];
+    const now = new Date();
+    const seeds = [
+      ['Lebensmittel / Haushalt', 12, 65, 'Rewe|Edeka|dm|Lidl'],
+      ['Essen/Alkohol(draußen)', 6, 28, 'Pizza|Döner|Bar mit Leuten|Sushi'],
+      ['Freizeit', 4, 30, 'Kino|Bouldern|Konzert|Schwimmbad'],
+      ['Benzin', 3, 70, 'Shell|Aral|Esso'],
+      ['Carsharing / Uber', 3, 14, 'Uber|Miles|Bolt'],
+      ['Klamotten', 1, 60, 'Zalando|H&M'],
+      ['Geschenke', 1, 35, 'Geburtstag|Mitbringsel'],
+      ['Divers', 3, 22, 'Amazon|Apotheke|Kleinkram'],
+    ];
+    for (let m = 11; m >= 0; m--) {
+      const base = new Date(now.getFullYear(), now.getMonth() - m, 1);
+      const days = m === 0 ? now.getDate() : 28;
+      seeds.forEach(([kat, n, avg, words]) => {
+        const w = words.split('|');
+        for (let i = 0; i < n; i++) {
+          const d = new Date(base.getFullYear(), base.getMonth(), 1 + Math.floor(Math.random() * days));
+          demoStore.push({
+            id: 'demo-' + m + '-' + kat + '-' + i,
+            datum: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+            kategorie: kat,
+            betrag: Math.round((avg * (0.5 + Math.random())) * 100) / 100,
+            beschreibung: w[Math.floor(Math.random() * w.length)],
+          });
+        }
+      });
+      demoStore.push({ id: 'demo-miete-' + m, datum: monthKey(base) + '-01', kategorie: 'Miete', betrag: 650, beschreibung: 'Miete' });
+    }
+  }
+  if (action === 'ping') return { ok: true, sheetName: 'Demo-Daten', sheetUrl: '#' };
+  if (action === 'overview') {
+    return { ok: true, sheetUrl: '#', entries: [...demoStore].sort((a, b) => b.datum.localeCompare(a.datum)) };
+  }
+  if (action === 'add') {
+    const id = 'demo-' + Date.now();
+    demoStore.push({ id, datum: extra.datum, kategorie: extra.kategorie, betrag: extra.betrag, beschreibung: extra.beschreibung });
+    return { ok: true, id };
+  }
+  if (action === 'delete') {
+    demoStore = demoStore.filter(x => x.id !== extra.id);
+    return { ok: true };
+  }
+  if (action === 'export') throw new Error('Im Demo-Modus gibt es keinen Excel-Export.');
+  return { ok: false };
+}
+
+/* ================= Navigation ================= */
+function show(scr) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $('scr-' + scr).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.scr === scr));
+  $('nav').style.display = scr === 'setup' ? 'none' : 'flex';
+  if (scr === 'overview') loadOverview();
+  if (scr === 'export') fillStatus();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.scr)));
+
+/* ================= Setup ================= */
+$('btn-connect').addEventListener('click', async () => {
+  const url = $('cfg-url').value.trim();
+  const pw = $('cfg-pw').value;
+  $('setup-err').textContent = '';
+  if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)) {
+    $('setup-err').textContent = 'Das ist keine gültige Apps-Script Web-App-URL (…/exec).';
+    return;
+  }
+  const btn = $('btn-connect');
+  btn.disabled = true; btn.textContent = 'Verbinde…';
+  try {
+    cfg = { url, password: pw };
+    const p = await api('ping');
+    localStorage.setItem('cfg', JSON.stringify(cfg));
+    toast('Verbunden mit „' + p.sheetName + '"');
+    show('entry');
+  } catch (err) {
+    cfg = null;
+    $('setup-err').textContent = err.message === 'Failed to fetch'
+      ? 'Keine Verbindung. Ist die Web-App mit Zugriff „Jeder" bereitgestellt?'
+      : err.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Verbinden';
+  }
+});
+$('btn-demo').addEventListener('click', () => {
+  cfg = { url: 'demo' };
+  toast('Demo-Modus – es wird nichts gespeichert');
+  show('entry');
+});
+$('btn-logout').addEventListener('click', () => {
+  localStorage.removeItem('cfg');
+  localStorage.removeItem('cache');
+  cfg = null; entries = null; demoStore = null;
+  show('setup');
+});
+
+/* ================= Eintragen ================= */
+function renderAmount() {
+  const el = $('amount-display');
+  const whole = Math.floor(cents / 100);
+  const frac = String(cents % 100).padStart(2, '0');
+  el.innerHTML = esc(whole.toLocaleString('de-DE')) + ',' + frac + '<span class="cur">€</span>';
+  el.classList.toggle('set', cents > 0);
+  updateSubmit();
+}
+function updateSubmit() {
+  $('btn-submit').disabled = !(cents > 0 && selectedCat);
+}
+$('keypad').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const k = b.dataset.k;
+  if (k === 'back') cents = Math.floor(cents / 10);
+  else if (k === '00') { if (cents > 0 && cents <= 99999999 / 100) cents = Math.min(cents * 100, 9999999); }
+  else {
+    const next = cents * 10 + Number(k);
+    if (next <= 9999999) cents = next; // max 99.999,99 €
+  }
+  renderAmount();
+});
+
+// Kategorie-Sheet
+const catList = $('cat-list');
+CATEGORIES.forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'cat-item';
+  b.dataset.key = c.key;
+  b.innerHTML = '<span class="emoji">' + c.emoji + '</span>' + esc(c.label) + '<span class="check">✓</span>';
+  b.addEventListener('click', () => {
+    selectedCat = c.key;
+    $('cat-emoji').textContent = c.emoji;
+    $('cat-name').textContent = c.label;
+    $('btn-cat').classList.remove('placeholder');
+    catList.querySelectorAll('.cat-item').forEach(x => x.classList.toggle('sel', x.dataset.key === c.key));
+    closeCatSheet();
+    updateSubmit();
+  });
+  catList.appendChild(b);
+});
+$('btn-cat').addEventListener('click', () => $('cat-sheet').classList.add('open'));
+function closeCatSheet() { $('cat-sheet').classList.remove('open'); }
+document.querySelector('#cat-sheet .sheet-bg').addEventListener('click', closeCatSheet);
+
+$('btn-submit').addEventListener('click', async () => {
+  const btn = $('btn-submit');
+  const payload = {
+    datum: $('in-date').value || todayIso(),
+    kategorie: selectedCat,
+    betrag: cents / 100,
+    beschreibung: $('in-desc').value.trim(),
+  };
+  btn.disabled = true; btn.textContent = 'Speichere…';
+  try {
+    await api('add', payload);
+    entries = null; localStorage.removeItem('cache'); // Übersicht neu laden
+    $('success-txt').textContent = EUR.format(payload.betrag) + ' eingetragen';
+    $('success').classList.add('show');
+    setTimeout(() => {
+      $('success').classList.remove('show');
+      cents = 0; $('in-desc').value = ''; renderAmount();
+    }, 1200);
+  } catch (err) {
+    toast('Fehler: ' + err.message);
+  } finally {
+    btn.textContent = 'Eintragen'; updateSubmit();
+  }
+});
+
+/* ================= Übersicht ================= */
+function last12Keys() {
+  const keys = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) keys.push(monthKey(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+  return keys;
+}
+function monthLabel(key, short) {
+  const [y, m] = key.split('-').map(Number);
+  const name = MONTHS[m - 1];
+  return short ? name.slice(0, 3) : name + ' ' + y;
+}
+
+async function loadOverview() {
+  const body = $('ov-body');
+  // Cache sofort anzeigen (falls vorhanden), aber immer frisch nachladen
+  if (entries && entries.length) renderOverview();
+  else body.innerHTML = '<div class="spin"></div>';
+  try {
+    const data = await api('overview');
+    entries = data.entries;
+    if (cfg.url !== 'demo') {
+      localStorage.setItem('cache', JSON.stringify(entries));
+      if (data.sheetUrl) { cfg.sheetUrl = data.sheetUrl; localStorage.setItem('cfg', JSON.stringify(cfg)); }
+    }
+    renderOverview();
+  } catch (err) {
+    if (entries && entries.length) toast('Aktualisierung fehlgeschlagen: ' + err.message);
+    else body.innerHTML = '<div class="card empty">Konnte Daten nicht laden.<br>' + esc(err.message) + '</div>';
+  }
+}
+
+function renderOverview() {
+  const keys = last12Keys();
+  if (!keys.includes(selMonth)) selMonth = keys[keys.length - 1];
+
+  const byMonth = {};
+  keys.forEach(k => byMonth[k] = []);
+  entries.forEach(e => {
+    const k = e.datum.slice(0, 7);
+    if (byMonth[k]) byMonth[k].push(e);
+  });
+  const totals = keys.map(k => byMonth[k].reduce((s, e) => s + e.betrag, 0));
+  const selIdx = keys.indexOf(selMonth);
+  const selEntries = byMonth[selMonth];
+  const selTotal = totals[selIdx];
+  const prevTotal = selIdx > 0 ? totals[selIdx - 1] : null;
+
+  // Vergleich zum Vormonat
+  let cmp = '';
+  if (prevTotal !== null && prevTotal > 0 && selTotal > 0) {
+    const diff = selTotal - prevTotal;
+    const cls = diff > 0 ? 'up' : 'down';
+    const sign = diff > 0 ? '+' : '−';
+    cmp = '<span class="' + cls + '">' + sign + EUR.format(Math.abs(diff)) + '</span> vs. ' + monthLabel(keys[selIdx - 1], true) + '.';
+  }
+
+  // Kategorien des Monats
+  const catTotals = {};
+  selEntries.forEach(e => catTotals[e.kategorie] = (catTotals[e.kategorie] || 0) + e.betrag);
+  const catRows = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+  const maxCat = catRows.length ? catRows[0][1] : 1;
+
+  const catHtml = catRows.length ? catRows.map(([k, v]) => {
+    const c = CAT_BY_KEY[k] || { emoji: '🏷️', label: k };
+    return '<div class="cat-row"><span class="emoji">' + c.emoji + '</span>' +
+      '<div class="info"><div class="name">' + esc(c.label) + '</div>' +
+      '<div class="track"><div class="fill" style="width:' + Math.max(3, Math.round(v / maxCat * 100)) + '%"></div></div></div>' +
+      '<span class="val">' + EUR.format(v) + '</span></div>';
+  }).join('') : '<div class="empty">Noch keine Ausgaben in diesem Monat.</div>';
+
+  // Einträge des Monats
+  const txHtml = selEntries.length ? selEntries.map(e => {
+    const c = CAT_BY_KEY[e.kategorie] || { emoji: '🏷️', label: e.kategorie };
+    const d = e.datum.split('-');
+    return '<div class="tx"><div class="emoji">' + c.emoji + '</div>' +
+      '<div class="mid"><div class="t1">' + esc(e.beschreibung || c.label) + '</div>' +
+      '<div class="t2">' + d[2] + '.' + d[1] + '. · ' + esc(c.label) + '</div></div>' +
+      '<span class="amt">' + EUR.format(e.betrag) + '</span>' +
+      '<button class="del" data-id="' + esc(e.id) + '" aria-label="Löschen">' +
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>' +
+      '</button></div>';
+  }).join('') : '<div class="empty">Keine Einträge.</div>';
+
+  $('ov-body').innerHTML =
+    '<div class="card">' +
+      '<div class="month-nav">' +
+        '<button id="mv-prev" ' + (selIdx === 0 ? 'disabled' : '') + '>‹</button>' +
+        '<span class="label">' + monthLabel(selMonth) + '</span>' +
+        '<button id="mv-next" ' + (selIdx === keys.length - 1 ? 'disabled' : '') + '>›</button>' +
+      '</div>' +
+      '<div class="hero"><div class="big">' + EUR.format(selTotal) + '</div><div class="cmp">' + (cmp || 'Gesamtausgaben im Monat.') + '</div></div>' +
+      barChart(keys, totals, selIdx) +
+    '</div>' +
+    '<div class="card"><div class="section-t">Nach Kategorie</div>' + catHtml + '</div>' +
+    '<div class="card"><div class="section-t">Einträge (' + selEntries.length + ')</div>' + txHtml + '</div>';
+
+  $('mv-prev').addEventListener('click', () => { selMonth = keys[selIdx - 1]; renderOverview(); });
+  $('mv-next').addEventListener('click', () => { selMonth = keys[selIdx + 1]; renderOverview(); });
+  document.querySelectorAll('#ov-body svg [data-m]').forEach(el =>
+    el.addEventListener('click', () => { selMonth = el.dataset.m; renderOverview(); }));
+  document.querySelectorAll('#ov-body .del').forEach(b => b.addEventListener('click', () => deleteEntry(b.dataset.id)));
+}
+
+/** 12-Monats-Balkendiagramm als SVG (eine Farbreihe, gewählter Monat betont). */
+function barChart(keys, totals, selIdx) {
+  const W = 520, H = 190, padL = 8, padR = 8, padT = 26, padB = 24;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const max = Math.max(...totals, 1);
+  const bw = Math.min(26, iw / keys.length - 8);
+  const step = iw / keys.length;
+  let bars = '', labels = '', grid = '';
+
+  [0.5, 1].forEach(f => {
+    const y = padT + ih - ih * f;
+    grid += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#e1e0d9" stroke-width="1"/>';
+  });
+
+  keys.forEach((k, i) => {
+    const h = Math.max(totals[i] > 0 ? 3 : 0, ih * totals[i] / max);
+    const x = padL + step * i + (step - bw) / 2;
+    const y = padT + ih - h;
+    const sel = i === selIdx;
+    bars += '<rect data-m="' + k + '" x="' + x + '" y="' + y + '" width="' + bw + '" height="' + Math.max(h, 0.01) +
+      '" rx="4" fill="' + (sel ? '#1c5cab' : '#2a78d6') + '"' + (sel ? '' : ' opacity="0.55"') + ' style="cursor:pointer"/>' +
+      '<rect data-m="' + k + '" x="' + (padL + step * i) + '" y="' + padT + '" width="' + step + '" height="' + ih + '" fill="transparent" style="cursor:pointer"/>';
+    if (sel && totals[i] > 0) {
+      labels += '<text x="' + (x + bw / 2) + '" y="' + (y - 8) + '" text-anchor="middle" font-size="12" font-weight="700" fill="#0b0b0b">' +
+        Math.round(totals[i]).toLocaleString('de-DE') + '&#8202;€</text>';
+    }
+    labels += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="10.5" fill="' +
+      (sel ? '#0b0b0b' : '#898781') + '" font-weight="' + (sel ? '700' : '400') + '">' + monthLabel(k, true) + '</text>';
+  });
+
+  return '<svg class="bars" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Ausgaben pro Monat">' +
+    grid + bars + labels +
+    '<line x1="' + padL + '" y1="' + (padT + ih) + '" x2="' + (W - padR) + '" y2="' + (padT + ih) + '" stroke="#c3c2b7" stroke-width="1"/>' +
+    '</svg>';
+}
+
+async function deleteEntry(id) {
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  if (!confirm('Eintrag löschen?\n' + EUR.format(e.betrag) + (e.beschreibung ? ' – ' + e.beschreibung : ''))) return;
+  try {
+    await api('delete', { id });
+    entries = entries.filter(x => x.id !== id);
+    if (cfg.url !== 'demo') localStorage.setItem('cache', JSON.stringify(entries));
+    renderOverview();
+    toast('Eintrag gelöscht');
+  } catch (err) {
+    toast('Fehler: ' + err.message);
+  }
+}
+
+/* ================= Export ================= */
+async function fillStatus() {
+  $('st-status').textContent = cfg.url === 'demo' ? 'Demo-Modus' : 'Verbunden';
+  $('lnk-sheet').href = cfg.sheetUrl || '#';
+  try {
+    const p = await api('ping');
+    $('st-sheet').textContent = p.sheetName;
+    if (p.sheetUrl && p.sheetUrl !== '#') { $('lnk-sheet').href = p.sheetUrl; }
+  } catch (e) {
+    $('st-sheet').textContent = '–';
+    $('st-status').textContent = 'Keine Verbindung';
+  }
+}
+$('btn-export').addEventListener('click', async () => {
+  const btn = $('btn-export');
+  btn.disabled = true; btn.textContent = 'Erstelle Datei…';
+  try {
+    const data = await api('export');
+    const bin = atob(data.base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = data.filename || 'Ausgaben.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    toast('Excel-Datei erstellt');
+  } catch (err) {
+    toast('Fehler: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Excel herunterladen';
+  }
+});
+
+/* ================= Init ================= */
+$('in-date').value = todayIso();
+renderAmount();
+show(cfg ? 'entry' : 'setup');
+
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
