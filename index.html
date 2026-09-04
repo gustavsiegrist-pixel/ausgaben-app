@@ -81,6 +81,14 @@
   .err { color: var(--bad); font-size: 14px; margin: 8px 0; min-height: 18px; }
 
   /* ---------- Entry ---------- */
+  .seg {
+    display: flex; background: var(--card); border-radius: 14px; padding: 4px;
+    box-shadow: 0 1px 2px rgba(11,11,11,.05); margin-bottom: 4px;
+  }
+  .seg button { flex: 1; padding: 10px 0; border-radius: 11px; font-weight: 700; font-size: 15px; color: var(--muted); transition: background .15s, color .15s; }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .seg button.on.income { background: var(--good); }
+  .amount.set.income { color: var(--good); }
   .amount {
     text-align: center; font-size: 56px; font-weight: 800; letter-spacing: -.03em;
     padding: 26px 0 6px; color: var(--muted); transition: color .15s;
@@ -225,8 +233,13 @@
 
 <!-- ================= EINTRAGEN ================= -->
 <section class="screen" id="scr-entry">
-  <h1>Neue Ausgabe</h1>
+  <h1 id="entry-title">Neuer Eintrag</h1>
   <p class="sub" id="entry-sub">Betrag eintippen, Kategorie wählen, fertig.</p>
+
+  <div class="seg" id="entry-mode">
+    <button data-mode="kosten" class="on">Kosten</button>
+    <button data-mode="einnahmen">Einnahmen</button>
+  </div>
 
   <div class="amount" id="amount-display">0,00<span class="cur">€</span></div>
 
@@ -339,7 +352,16 @@ const CATEGORIES = [
   { key: 'Miete',                    label: 'Miete', emoji: '🏠' },
   { key: 'Divers',                   label: 'Divers', emoji: '📦' },
 ];
-const CAT_BY_KEY = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
+const INCOME_CATS = [
+  { key: 'Gehalt',             label: 'Gehalt', emoji: '💰' },
+  { key: 'Kindergeld',         label: 'Kindergeld', emoji: '👶' },
+  { key: 'Unterhalt',          label: 'Unterhalt', emoji: '🤝' },
+  { key: 'Sonstige Einnahmen', label: 'Sonstige Einnahmen', emoji: '🪙' },
+];
+const CAT_BY_KEY = Object.fromEntries([...CATEGORIES, ...INCOME_CATS].map(c => [c.key, c]));
+const INCOME_KEYS = new Set(INCOME_CATS.map(c => c.key));
+const isIncome = kat => INCOME_KEYS.has(kat);
+let entryMode = 'kosten'; // 'kosten' | 'einnahmen'
 const MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 
@@ -422,6 +444,8 @@ function demoApi(action, extra) {
         }
       });
       demoStore.push({ id: 'demo-miete-' + m, datum: monthKey(base) + '-01', kategorie: 'Miete', betrag: 650, beschreibung: 'Miete' });
+      demoStore.push({ id: 'demo-gehalt-' + m, datum: monthKey(base) + '-01', kategorie: 'Gehalt', betrag: 2650, beschreibung: 'Gehalt' });
+      demoStore.push({ id: 'demo-kg-' + m, datum: monthKey(base) + '-01', kategorie: 'Kindergeld', betrag: 255, beschreibung: 'Kindergeld' });
     }
   }
   if (action === 'ping') return { ok: true, sheetName: 'Demo-Daten', sheetUrl: '#' };
@@ -498,6 +522,7 @@ function renderAmount() {
   const frac = String(cents % 100).padStart(2, '0');
   el.innerHTML = esc(whole.toLocaleString('de-DE')) + ',' + frac + '<span class="cur">€</span>';
   el.classList.toggle('set', cents > 0);
+  el.classList.toggle('income', entryMode === 'einnahmen');
   updateSubmit();
 }
 function updateSubmit() {
@@ -516,24 +541,45 @@ $('keypad').addEventListener('click', e => {
   renderAmount();
 });
 
-// Kategorie-Sheet
+// Kategorie-Sheet (Liste hängt vom Modus Kosten/Einnahmen ab)
 const catList = $('cat-list');
-CATEGORIES.forEach(c => {
-  const b = document.createElement('button');
-  b.className = 'cat-item';
-  b.dataset.key = c.key;
-  b.innerHTML = '<span class="emoji">' + c.emoji + '</span>' + esc(c.label) + '<span class="check">✓</span>';
-  b.addEventListener('click', () => {
-    selectedCat = c.key;
-    $('cat-emoji').textContent = c.emoji;
-    $('cat-name').textContent = c.label;
-    $('btn-cat').classList.remove('placeholder');
-    catList.querySelectorAll('.cat-item').forEach(x => x.classList.toggle('sel', x.dataset.key === c.key));
-    closeCatSheet();
-    updateSubmit();
+function renderCatList() {
+  catList.innerHTML = '';
+  (entryMode === 'einnahmen' ? INCOME_CATS : CATEGORIES).forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'cat-item' + (selectedCat === c.key ? ' sel' : '');
+    b.dataset.key = c.key;
+    b.innerHTML = '<span class="emoji">' + c.emoji + '</span>' + esc(c.label) + '<span class="check">✓</span>';
+    b.addEventListener('click', () => {
+      selectedCat = c.key;
+      $('cat-emoji').textContent = c.emoji;
+      $('cat-name').textContent = c.label;
+      $('btn-cat').classList.remove('placeholder');
+      catList.querySelectorAll('.cat-item').forEach(x => x.classList.toggle('sel', x.dataset.key === c.key));
+      closeCatSheet();
+      updateSubmit();
+    });
+    catList.appendChild(b);
   });
-  catList.appendChild(b);
-});
+}
+renderCatList();
+
+// Umschalter Kosten / Einnahmen
+document.querySelectorAll('#entry-mode button').forEach(b => b.addEventListener('click', () => {
+  if (entryMode === b.dataset.mode) return;
+  entryMode = b.dataset.mode;
+  document.querySelectorAll('#entry-mode button').forEach(x => {
+    const on = x.dataset.mode === entryMode;
+    x.classList.toggle('on', on);
+    x.classList.toggle('income', on && entryMode === 'einnahmen');
+  });
+  selectedCat = null;
+  $('cat-emoji').textContent = '🏷️';
+  $('cat-name').textContent = 'Kategorie wählen';
+  $('btn-cat').classList.add('placeholder');
+  renderCatList();
+  renderAmount();
+}));
 $('btn-cat').addEventListener('click', () => $('cat-sheet').classList.add('open'));
 function closeCatSheet() { $('cat-sheet').classList.remove('open'); }
 document.querySelector('#cat-sheet .sheet-bg').addEventListener('click', closeCatSheet);
@@ -643,11 +689,13 @@ function renderOverview() {
     const k = e.datum.slice(0, 7);
     if (byMonth[k]) byMonth[k].push(e);
   });
-  const totals = keys.map(k => byMonth[k].reduce((s, e) => s + e.betrag, 0));
+  // Balken/Summen = nur Kosten; Einnahmen separat
+  const totals = keys.map(k => byMonth[k].reduce((s, e) => s + (isIncome(e.kategorie) ? 0 : e.betrag), 0));
   const selIdx = keys.indexOf(selMonth);
   const selEntries = byMonth[selMonth];
   const selTotal = totals[selIdx];
   const prevTotal = selIdx > 0 ? totals[selIdx - 1] : null;
+  const selIncome = selEntries.reduce((s, e) => s + (isIncome(e.kategorie) ? e.betrag : 0), 0);
 
   // Vergleich zum Vormonat
   let cmp = '';
@@ -657,10 +705,17 @@ function renderOverview() {
     const sign = diff > 0 ? '+' : '−';
     cmp = '<span class="' + cls + '">' + sign + EUR.format(Math.abs(diff)) + '</span> vs. ' + monthLabel(keys[selIdx - 1], true) + '.';
   }
+  // Einnahmen & Saldo des Monats
+  let incomeLine = '';
+  if (selIncome > 0) {
+    const saldo = selIncome - selTotal;
+    incomeLine = '<div class="cmp">Einnahmen: <span class="down">' + EUR.format(selIncome) + '</span> · Saldo: ' +
+      '<span class="' + (saldo >= 0 ? 'down' : 'up') + '">' + (saldo >= 0 ? '+' : '−') + EUR.format(Math.abs(saldo)) + '</span></div>';
+  }
 
-  // Kategorien des Monats
+  // Kategorien des Monats (nur Kosten)
   const catTotals = {};
-  selEntries.forEach(e => catTotals[e.kategorie] = (catTotals[e.kategorie] || 0) + e.betrag);
+  selEntries.forEach(e => { if (!isIncome(e.kategorie)) catTotals[e.kategorie] = (catTotals[e.kategorie] || 0) + e.betrag; });
   const catRows = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
   const maxCat = catRows.length ? catRows[0][1] : 1;
 
@@ -676,10 +731,11 @@ function renderOverview() {
   const txHtml = selEntries.length ? selEntries.map(e => {
     const c = CAT_BY_KEY[e.kategorie] || { emoji: '🏷️', label: e.kategorie };
     const d = e.datum.split('-');
+    const inc = isIncome(e.kategorie);
     return '<div class="tx"' + (e.pending ? ' style="opacity:.65"' : '') + '><div class="emoji">' + c.emoji + '</div>' +
       '<div class="mid"><div class="t1">' + esc(e.beschreibung || c.label) + '</div>' +
       '<div class="t2">' + d[2] + '.' + d[1] + '. · ' + esc(c.label) + (e.pending ? ' · wird synchronisiert…' : '') + '</div></div>' +
-      '<span class="amt">' + EUR.format(e.betrag) + '</span>' +
+      '<span class="amt"' + (inc ? ' style="color:var(--good)"' : '') + '>' + (inc ? '+' : '') + EUR.format(e.betrag) + '</span>' +
       '<button class="del" data-id="' + esc(e.id) + '" aria-label="Löschen">' +
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>' +
       '</button></div>';
@@ -692,7 +748,7 @@ function renderOverview() {
         '<span class="label">' + monthLabel(selMonth) + '</span>' +
         '<button id="mv-next" ' + (selIdx === keys.length - 1 ? 'disabled' : '') + '>›</button>' +
       '</div>' +
-      '<div class="hero"><div class="big">' + EUR.format(selTotal) + '</div><div class="cmp">' + (cmp || 'Gesamtausgaben im Monat.') + '</div></div>' +
+      '<div class="hero"><div class="big">' + EUR.format(selTotal) + '</div><div class="cmp">' + (cmp || 'Gesamtausgaben im Monat.') + '</div>' + incomeLine + '</div>' +
       barChart(keys, totals, selIdx) +
     '</div>' +
     '<div class="card"><div class="section-t">Nach Kategorie</div>' + catHtml + '</div>' +
