@@ -463,6 +463,14 @@ if (cfg && cfg.url !== 'demo') cfg.url = BACKEND_URL;
 try { entries = JSON.parse(localStorage.getItem('cache') || 'null'); } catch (e) {}
 try { outbox = JSON.parse(localStorage.getItem('outbox') || '[]'); } catch (e) {}
 function saveOutbox() { localStorage.setItem('outbox', JSON.stringify(outbox)); }
+// Zuletzt bekannte Zusatzdaten (Vermögen, Daueraufträge) sofort verfügbar halten
+try {
+  const ex = JSON.parse(localStorage.getItem('extras') || 'null');
+  if (ex) { wealthInfo = ex.wealth || null; recOrders = ex.orders || null; }
+} catch (e) {}
+function saveExtras() {
+  try { localStorage.setItem('extras', JSON.stringify({ wealth: wealthInfo, orders: recOrders })); } catch (e) {}
+}
 
 /* ================= Helpers ================= */
 const $ = id => document.getElementById(id);
@@ -604,6 +612,7 @@ $('btn-connect').addEventListener('click', async () => {
     localStorage.setItem('cfg', JSON.stringify(cfg));
     toast('Hallo ' + (p.user || user) + '!');
     show('entry');
+    prefetchAll();
   } catch (err) {
     cfg = null;
     $('setup-err').textContent = err.message === 'Failed to fetch'
@@ -660,6 +669,7 @@ $('btn-demo').addEventListener('click', () => {
 $('btn-logout').addEventListener('click', () => {
   localStorage.removeItem('cfg');
   localStorage.removeItem('cache');
+  localStorage.removeItem('extras');
   cfg = null; entries = null; demoStore = null;
   wealthInfo = null; recOrders = null; demoApi._wealth = null;
   show('setup');
@@ -813,7 +823,7 @@ async function loadOverview() {
   try {
     const data = await api('overview');
     entries = data.entries;
-    if (data.wealth !== undefined) wealthInfo = data.wealth;
+    if (data.wealth !== undefined) { wealthInfo = data.wealth; saveExtras(); }
     if (cfg.url !== 'demo') {
       localStorage.setItem('cache', JSON.stringify(entries));
       if (data.sheetUrl) { cfg.sheetUrl = data.sheetUrl; localStorage.setItem('cfg', JSON.stringify(cfg)); }
@@ -1054,16 +1064,34 @@ document.querySelectorAll('#rec-mode button').forEach(b => b.addEventListener('c
 
 async function loadRecurring() {
   if (recOrders === null) $('rec-body').innerHTML = '<div class="spin"></div>';
-  else renderRecurring();
+  else renderRecurring(); // Cache sofort zeigen
   try {
     const data = await api('extras');
     recOrders = data.orders || [];
     if (data.wealth !== undefined) wealthInfo = data.wealth;
+    saveExtras();
     renderRecurring();
   } catch (err) {
     if (recOrders === null) $('rec-body').innerHTML = '<div class="card empty">Konnte Daten nicht laden.<br>' + esc(err.message) + '</div>';
     else toast('Aktualisierung fehlgeschlagen: ' + err.message);
   }
+}
+
+/** Nach dem Login beide Bereiche im Hintergrund vorladen – Tabwechsel ist dann sofort da. */
+function prefetchAll() {
+  if (!cfg) return;
+  api('overview').then(data => {
+    entries = data.entries;
+    if (data.wealth !== undefined) { wealthInfo = data.wealth; saveExtras(); }
+    if (cfg.url !== 'demo') localStorage.setItem('cache', JSON.stringify(entries));
+    if ($('scr-overview').classList.contains('active')) renderOverview();
+  }).catch(() => {});
+  api('extras').then(data => {
+    recOrders = data.orders || [];
+    if (data.wealth !== undefined) wealthInfo = data.wealth;
+    saveExtras();
+    if ($('scr-recurring').classList.contains('active')) renderRecurring();
+  }).catch(() => {});
 }
 
 function renderRecurring() {
@@ -1244,6 +1272,7 @@ $('in-date').value = todayIso();
 renderAmount();
 show(cfg ? 'entry' : 'setup');
 flushOutbox();
+if (cfg) prefetchAll(); // beim Start schon laden, damit Tabwechsel sofort geht
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
