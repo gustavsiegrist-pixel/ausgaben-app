@@ -644,7 +644,10 @@ $('btn-admin-create').addEventListener('click', async () => {
     $('adm-user').value = ''; $('adm-userpw').value = ''; $('adm-existing').value = '';
     err.textContent = '';
   } catch (e2) {
-    err.textContent = e2.message === 'Failed to fetch' ? 'Keine Verbindung zur Web-App.' : e2.message;
+    const netzFehler = /Failed to fetch|Load failed|NetworkError|abgebrochen/i.test(e2.message || '');
+    err.textContent = netzFehler
+      ? 'Zeitüberschreitung – der Account wurde eventuell trotzdem angelegt. Melde dich einfach mit dem neuen Benutzernamen an; falls das nicht geht, in 1 Minute erneut versuchen.'
+      : e2.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Account anlegen';
   }
