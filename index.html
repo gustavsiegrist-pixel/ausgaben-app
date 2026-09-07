@@ -241,6 +241,10 @@
       <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off">
     </div>
     <div class="field">
+      <label for="cfg-user">Benutzername</label>
+      <input id="cfg-user" type="text" placeholder="z. B. gustav" autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="field">
       <label for="cfg-pw">Passwort</label>
       <input id="cfg-pw" type="password" placeholder="Passwort">
     </div>
@@ -248,6 +252,32 @@
     <button class="btn" id="btn-connect">Verbinden</button>
     <div style="height:10px"></div>
     <button class="btn ghost" id="btn-demo">Demo ansehen</button>
+  </div>
+
+  <div class="card">
+    <button class="linkish" id="btn-admin-toggle" style="display:block;width:100%;text-align:center;background:none;padding:4px">Admin: Neuen Account anlegen ▾</button>
+    <div id="admin-form" style="display:none;margin-top:14px">
+      <div class="field">
+        <label for="adm-pw">Admin-Passwort</label>
+        <input id="adm-pw" type="password" placeholder="Admin-Passwort">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="adm-user">Neuer Benutzername</label>
+          <input id="adm-user" type="text" placeholder="z. B. mama" autocapitalize="off" autocorrect="off">
+        </div>
+        <div class="field">
+          <label for="adm-userpw">Dessen Passwort</label>
+          <input id="adm-userpw" type="text" placeholder="min. 8 Zeichen" autocapitalize="off" autocorrect="off">
+        </div>
+      </div>
+      <div class="field">
+        <label for="adm-existing">Vorhandene Sheet-ID (optional – sonst wird die Vorlage kopiert)</label>
+        <input id="adm-existing" type="text" placeholder="leer lassen für neuen Account" autocapitalize="off" autocorrect="off">
+      </div>
+      <div class="err" id="adm-err"></div>
+      <button class="btn ghost" id="btn-admin-create">Account anlegen</button>
+    </div>
   </div>
 </section>
 
@@ -324,6 +354,7 @@
   </div>
   <div class="card">
     <div class="settings-row"><span class="k">Status</span><span id="st-status">–</span></div>
+    <div class="settings-row"><span class="k">Account</span><span id="st-user">–</span></div>
     <div class="settings-row"><span class="k">Sheet</span><span id="st-sheet">–</span></div>
     <div class="settings-row">
       <span class="k">Verbindung</span>
@@ -421,6 +452,14 @@ let recOrders = null;        // Daueraufträge-Cache
 let recMode = 'orders';      // 'orders' | 'portfolio'
 
 try { cfg = JSON.parse(localStorage.getItem('cfg') || 'null'); } catch (e) {}
+// Alte Logins (vor Multi-Account) haben keinen Benutzernamen → neu anmelden
+if (cfg && cfg.url !== 'demo' && !cfg.user) {
+  const oldUrl = cfg.url;
+  cfg = null;
+  localStorage.removeItem('cfg');
+  localStorage.removeItem('cache');
+  setTimeout(() => { const el = document.getElementById('cfg-url'); if (el) el.value = oldUrl; }, 0);
+}
 try { entries = JSON.parse(localStorage.getItem('cache') || 'null'); } catch (e) {}
 try { outbox = JSON.parse(localStorage.getItem('outbox') || '[]'); } catch (e) {}
 function saveOutbox() { localStorage.setItem('outbox', JSON.stringify(outbox)); }
@@ -449,7 +488,7 @@ async function api(action, extra = {}) {
   const res = await fetch(cfg.url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, password: cfg.password, ...extra }),
+    body: JSON.stringify({ action, user: cfg.user, password: cfg.password, ...extra }),
     redirect: 'follow',
   });
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -551,19 +590,24 @@ document.querySelectorAll('nav button').forEach(b => b.addEventListener('click',
 /* ================= Setup ================= */
 $('btn-connect').addEventListener('click', async () => {
   const url = $('cfg-url').value.trim();
+  const user = $('cfg-user').value.trim();
   const pw = $('cfg-pw').value;
   $('setup-err').textContent = '';
   if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)) {
     $('setup-err').textContent = 'Das ist keine gültige Apps-Script Web-App-URL (…/exec).';
     return;
   }
+  if (!user) {
+    $('setup-err').textContent = 'Bitte Benutzernamen eingeben.';
+    return;
+  }
   const btn = $('btn-connect');
   btn.disabled = true; btn.textContent = 'Verbinde…';
   try {
-    cfg = { url, password: pw };
+    cfg = { url, user, password: pw };
     const p = await api('ping');
     localStorage.setItem('cfg', JSON.stringify(cfg));
-    toast('Verbunden mit „' + p.sheetName + '"');
+    toast('Hallo ' + (p.user || user) + '!');
     show('entry');
   } catch (err) {
     cfg = null;
@@ -572,6 +616,46 @@ $('btn-connect').addEventListener('click', async () => {
       : err.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Verbinden';
+  }
+});
+
+// Admin: Account anlegen (funktioniert ohne Login, braucht nur URL + Admin-Passwort)
+$('btn-admin-toggle').addEventListener('click', () => {
+  const f = $('admin-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+});
+$('btn-admin-create').addEventListener('click', async () => {
+  const url = $('cfg-url').value.trim();
+  const err = $('adm-err');
+  err.textContent = '';
+  if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)) {
+    err.textContent = 'Bitte oben zuerst die Web-App-URL eintragen.';
+    return;
+  }
+  const btn = $('btn-admin-create');
+  btn.disabled = true; btn.textContent = 'Lege an…';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'admin_create_account',
+        adminPassword: $('adm-pw').value,
+        newUser: $('adm-user').value.trim(),
+        newPassword: $('adm-userpw').value,
+        existingId: $('adm-existing').value.trim(),
+      }),
+      redirect: 'follow',
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.message || data.error || 'Fehler');
+    toast('Account „' + data.user + '" angelegt');
+    $('adm-user').value = ''; $('adm-userpw').value = ''; $('adm-existing').value = '';
+    err.textContent = '';
+  } catch (e2) {
+    err.textContent = e2.message === 'Failed to fetch' ? 'Keine Verbindung zur Web-App.' : e2.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Account anlegen';
   }
 });
 $('btn-demo').addEventListener('click', () => {
@@ -1126,10 +1210,12 @@ async function savePortfolio() {
 /* ================= Export ================= */
 async function fillStatus() {
   $('st-status').textContent = cfg.url === 'demo' ? 'Demo-Modus' : 'Verbunden';
+  $('st-user').textContent = cfg.user || (cfg.url === 'demo' ? 'Demo' : '–');
   $('lnk-sheet').href = cfg.sheetUrl || '#';
   try {
     const p = await api('ping');
     $('st-sheet').textContent = p.sheetName;
+    if (p.user) $('st-user').textContent = p.user;
     if (p.sheetUrl && p.sheetUrl !== '#') { $('lnk-sheet').href = p.sheetUrl; }
   } catch (e) {
     $('st-sheet').textContent = '–';
