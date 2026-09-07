@@ -234,19 +234,15 @@
 <!-- ================= SETUP ================= -->
 <section class="screen" id="scr-setup">
   <h1>Ausgaben</h1>
-  <p class="sub">Verbinde die App mit deinem Google Sheet.</p>
+  <p class="sub">Melde dich mit deinem Account an.</p>
   <div class="card">
     <div class="field">
-      <label for="cfg-url">Web-App-URL (Apps Script)</label>
-      <input id="cfg-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off">
-    </div>
-    <div class="field">
       <label for="cfg-user">Benutzername</label>
-      <input id="cfg-user" type="text" placeholder="z. B. gustav" autocapitalize="off" autocorrect="off">
+      <input id="cfg-user" type="text" placeholder="z. B. gustav" autocapitalize="off" autocorrect="off" enterkeyhint="next">
     </div>
     <div class="field">
       <label for="cfg-pw">Passwort</label>
-      <input id="cfg-pw" type="password" placeholder="Passwort">
+      <input id="cfg-pw" type="password" placeholder="Passwort" enterkeyhint="go">
     </div>
     <div class="err" id="setup-err"></div>
     <button class="btn" id="btn-connect">Verbinden</button>
@@ -407,6 +403,10 @@
 'use strict';
 
 /* ================= Konstanten ================= */
+// Zentrale Backend-Adresse – für alle Nutzer gleich, daher fest hinterlegt.
+// Ändert sich nur, falls je eine komplett NEUE Bereitstellung nötig wird.
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzCQvZqm83wYEQ2nsr5KAO0vW5pydLKx7eevQD7MmXdeOLKBDjL_q3m1NBK7X7mJ2y1/exec';
+
 const CATEGORIES = [
   { key: 'Lebensmittel / Haushalt',  label: 'Lebensmittel & Haushalt', emoji: '🛒' },
   { key: 'Essen/Alkohol(draußen)',   label: 'Essen & Trinken (draußen)', emoji: '🍕' },
@@ -454,12 +454,12 @@ let recMode = 'orders';      // 'orders' | 'portfolio'
 try { cfg = JSON.parse(localStorage.getItem('cfg') || 'null'); } catch (e) {}
 // Alte Logins (vor Multi-Account) haben keinen Benutzernamen → neu anmelden
 if (cfg && cfg.url !== 'demo' && !cfg.user) {
-  const oldUrl = cfg.url;
   cfg = null;
   localStorage.removeItem('cfg');
   localStorage.removeItem('cache');
-  setTimeout(() => { const el = document.getElementById('cfg-url'); if (el) el.value = oldUrl; }, 0);
 }
+// Backend-URL immer auf die zentrale Konstante setzen (außer Demo)
+if (cfg && cfg.url !== 'demo') cfg.url = BACKEND_URL;
 try { entries = JSON.parse(localStorage.getItem('cache') || 'null'); } catch (e) {}
 try { outbox = JSON.parse(localStorage.getItem('outbox') || '[]'); } catch (e) {}
 function saveOutbox() { localStorage.setItem('outbox', JSON.stringify(outbox)); }
@@ -589,14 +589,9 @@ document.querySelectorAll('nav button').forEach(b => b.addEventListener('click',
 
 /* ================= Setup ================= */
 $('btn-connect').addEventListener('click', async () => {
-  const url = $('cfg-url').value.trim();
   const user = $('cfg-user').value.trim();
   const pw = $('cfg-pw').value;
   $('setup-err').textContent = '';
-  if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)) {
-    $('setup-err').textContent = 'Das ist keine gültige Apps-Script Web-App-URL (…/exec).';
-    return;
-  }
   if (!user) {
     $('setup-err').textContent = 'Bitte Benutzernamen eingeben.';
     return;
@@ -604,7 +599,7 @@ $('btn-connect').addEventListener('click', async () => {
   const btn = $('btn-connect');
   btn.disabled = true; btn.textContent = 'Verbinde…';
   try {
-    cfg = { url, user, password: pw };
+    cfg = { url: BACKEND_URL, user, password: pw };
     const p = await api('ping');
     localStorage.setItem('cfg', JSON.stringify(cfg));
     toast('Hallo ' + (p.user || user) + '!');
@@ -625,17 +620,12 @@ $('btn-admin-toggle').addEventListener('click', () => {
   f.style.display = f.style.display === 'none' ? 'block' : 'none';
 });
 $('btn-admin-create').addEventListener('click', async () => {
-  const url = $('cfg-url').value.trim();
   const err = $('adm-err');
   err.textContent = '';
-  if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(url)) {
-    err.textContent = 'Bitte oben zuerst die Web-App-URL eintragen.';
-    return;
-  }
   const btn = $('btn-admin-create');
   btn.disabled = true; btn.textContent = 'Lege an…';
   try {
-    const res = await fetch(url, {
+    const res = await fetch(BACKEND_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
