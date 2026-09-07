@@ -272,8 +272,8 @@
         </div>
       </div>
       <div class="field">
-        <label for="adm-existing">Vorhandene Sheet-ID (optional – sonst wird die Vorlage kopiert)</label>
-        <input id="adm-existing" type="text" placeholder="leer lassen für neuen Account" autocapitalize="off" autocorrect="off">
+        <label for="adm-existing">Vorhandenes Sheet (optional – sonst wird die Vorlage kopiert)</label>
+        <input id="adm-existing" type="text" placeholder="Sheet-URL oder ID einfügen, sonst leer" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
       <div class="err" id="adm-err"></div>
       <button class="btn ghost" id="btn-admin-create">Account anlegen</button>
@@ -643,7 +643,8 @@ $('btn-admin-create').addEventListener('click', async () => {
         adminPassword: $('adm-pw').value,
         newUser: $('adm-user').value.trim(),
         newPassword: $('adm-userpw').value,
-        existingId: $('adm-existing').value.trim(),
+        // ID auch aus einer kompletten Sheet-URL oder verunreinigtem Text herausfischen
+        existingId: (($('adm-existing').value.match(/[a-zA-Z0-9_-]{25,}/) || [''])[0]),
       }),
       redirect: 'follow',
     });
