@@ -220,6 +220,21 @@
   .settings-row .k { color: var(--ink-2); }
   .badge { display: inline-block; background: var(--accent-soft); color: var(--accent-dark); font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 10px; margin-left: 8px; vertical-align: 2px; }
 
+  /* ---------- Willkommens-Splash ---------- */
+  .welcome {
+    position: fixed; inset: 0; z-index: 100; background: #fff;
+    display: none; align-items: center; justify-content: center;
+    text-align: center; padding: 32px;
+  }
+  .welcome.show { display: flex; }
+  .welcome .w-title { font-size: 30px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 10px; animation: pop .4s cubic-bezier(.2,1.4,.4,1); }
+  .welcome .w-sub { font-size: 17px; color: var(--ink-2); line-height: 1.4; animation: wup .5s ease .15s backwards; }
+  @keyframes wup { from { opacity: 0; transform: translateY(10px); } }
+
+  /* Sanfter Übergang beim Tab-/Swipe-Wechsel */
+  .screen.active { animation: screenfade .18s ease; }
+  @keyframes screenfade { from { opacity: .5; } to { opacity: 1; } }
+
   .toast {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(100px + var(--sab));
     background: var(--ink); color: #fff; font-size: 14px; font-weight: 600;
@@ -395,6 +410,14 @@
     <svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
   </div>
   <p id="success-txt">Eingetragen!</p>
+</div>
+
+<!-- Willkommens-Splash nach dem Login -->
+<div class="welcome" id="welcome">
+  <div>
+    <div class="w-title">Willkommen <span id="welcome-name"></span>!</div>
+    <div class="w-sub">Ab heute hast du Überblick über deine Finanzen 🎉</div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -595,6 +618,32 @@ function show(scr) {
 }
 document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.scr)));
 
+// Wisch-Gesten: horizontal zwischen den Tabs wechseln
+const TAB_ORDER = ['entry', 'overview', 'recurring', 'export'];
+let swipeX = null, swipeY = null;
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) { swipeX = null; return; }
+  swipeX = e.touches[0].clientX;
+  swipeY = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  if (swipeX === null) return;
+  const dx = e.changedTouches[0].clientX - swipeX;
+  const dy = e.changedTouches[0].clientY - swipeY;
+  swipeX = swipeY = null;
+  // Nur klar horizontale, ausreichend lange Wischer zählen
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 2) return;
+  // Nicht wischen, wenn ein Overlay offen ist oder in einem Eingabefeld gewischt wird
+  if (!cfg) return;
+  if ($('cat-sheet').classList.contains('open') || $('success').classList.contains('show') || $('welcome').classList.contains('show')) return;
+  if (e.target.closest && e.target.closest('input, select, textarea')) return;
+  const cur = document.querySelector('.screen.active');
+  const idx = TAB_ORDER.indexOf(cur ? cur.id.replace('scr-', '') : '');
+  if (idx === -1) return; // z. B. Setup-Bildschirm
+  const next = TAB_ORDER[idx + (dx < 0 ? 1 : -1)];
+  if (next) show(next);
+}, { passive: true });
+
 /* ================= Setup ================= */
 $('btn-connect').addEventListener('click', async () => {
   const user = $('cfg-user').value.trim();
@@ -610,9 +659,12 @@ $('btn-connect').addEventListener('click', async () => {
     cfg = { url: BACKEND_URL, user, password: pw };
     const p = await api('ping');
     localStorage.setItem('cfg', JSON.stringify(cfg));
-    toast('Hallo ' + (p.user || user) + '!');
+    // Willkommens-Splash (2 s) – währenddessen laden die Daten im Hintergrund
+    $('welcome-name').textContent = p.user || user;
+    $('welcome').classList.add('show');
     show('entry');
     prefetchAll();
+    setTimeout(() => $('welcome').classList.remove('show'), 2000);
   } catch (err) {
     cfg = null;
     $('setup-err').textContent = err.message === 'Failed to fetch'
