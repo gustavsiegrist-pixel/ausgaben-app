@@ -378,9 +378,9 @@
     <div class="exp-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
     </div>
-    <p style="font-weight:700; font-size:17px; margin-bottom:6px;">Excel-Datei</p>
-    <p style="color:var(--muted); font-size:14px; margin-bottom:16px;">Lädt das komplette Sheet mit allen Einträgen, Formeln und Blättern als .xlsx herunter.</p>
-    <button class="btn" id="btn-export">Excel herunterladen</button>
+    <p style="font-weight:700; font-size:17px; margin-bottom:6px;">Google Sheet</p>
+    <p style="color:var(--muted); font-size:14px; margin-bottom:16px;">Lädt dein komplettes Google Sheet mit allen Einträgen, Formeln und Blättern herunter.</p>
+    <button class="btn" id="btn-export">Google Sheet herunterladen</button>
   </div>
   <div class="card center">
     <a class="linkish" id="lnk-sheet" href="#" target="_blank" rel="noopener">Google Sheet im Browser öffnen ↗</a>
@@ -454,7 +454,7 @@
 // Zentrale Backend-Adresse – für alle Nutzer gleich, daher fest hinterlegt.
 // Ändert sich nur, falls je eine komplett NEUE Bereitstellung nötig wird.
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzCQvZqm83wYEQ2nsr5KAO0vW5pydLKx7eevQD7MmXdeOLKBDjL_q3m1NBK7X7mJ2y1/exec';
-const APP_VERSION = '2.4'; // bei jedem App-Update hochzählen – sichtbar im Export-Tab
+const APP_VERSION = '2.5'; // bei jedem App-Update hochzählen – sichtbar im Export-Tab
 
 const CATEGORIES = [
   { key: 'Lebensmittel / Haushalt',  label: 'Lebensmittel & Haushalt', emoji: '🛒' },
@@ -1380,6 +1380,7 @@ async function fillStatus() {
 $('btn-export').addEventListener('click', async () => {
   const btn = $('btn-export');
   btn.disabled = true; btn.textContent = 'Erstelle Datei…';
+  // Hinweis: Der Download ist eine .xlsx-Datei (reine Daten + Formeln, ohne Scripts)
   try {
     const data = await api('export');
     const bin = atob(data.base64);
@@ -1392,11 +1393,11 @@ $('btn-export').addEventListener('click', async () => {
     document.body.appendChild(a);
     a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
-    toast('Excel-Datei erstellt');
+    toast('Datei erstellt');
   } catch (err) {
     toast('Fehler: ' + err.message);
   } finally {
-    btn.disabled = false; btn.textContent = 'Excel herunterladen';
+    btn.disabled = false; btn.textContent = 'Google Sheet herunterladen';
   }
 });
 
