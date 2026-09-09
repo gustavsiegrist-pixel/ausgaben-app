@@ -1353,6 +1353,11 @@ show(cfg ? 'entry' : 'setup');
 flushOutbox();
 if (cfg) prefetchAll(); // beim Start schon laden, damit Tabwechsel sofort geht
 
+// Beim Zurückkehren aus dem Hintergrund still aktualisieren
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && cfg) { flushOutbox(); prefetchAll(); }
+});
+
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
