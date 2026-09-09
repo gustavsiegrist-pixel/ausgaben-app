@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Ausgaben – Apple-Design-Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="robots" content="noindex">
+<style>
+  :root {
+    --bg: #f2f2f7;            /* iOS systemGroupedBackground */
+    --card: #ffffff;
+    --ink: #000;
+    --ink-2: rgba(60,60,67,.72);
+    --ink-3: rgba(60,60,67,.4);
+    --accent: #0a84ff;        /* iOS systemBlue */
+    --good: #248a3d;
+    --orange: #e8630a;
+    --hairline: rgba(60,60,67,.14);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sat: env(safe-area-inset-top, 0px);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { scrollbar-width: none; }
+  body::-webkit-scrollbar { display: none; }
+  body {
+    font: 100%/1.5 system-ui, -apple-system, sans-serif;  /* §15: Systemschrift, komfortables Leading */
+    background: var(--bg); color: var(--ink);
+    min-height: 100dvh; overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; border: 0; background: none; color: inherit; }
+
+  /* ---------- Transluzente Chrome-Ebenen (§12): Inhalt scrollt DARUNTER ---------- */
+  header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 30;
+    padding: calc(var(--sat) + 10px) 20px 8px;
+    background: rgba(242,242,247,0);
+    -webkit-backdrop-filter: blur(0px); backdrop-filter: blur(0px);
+    transition: background .25s ease;
+  }
+  header.scrolled {
+    background: rgba(249,249,251,.72);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  }
+  /* Scroll-Edge-Effekt statt harter 1px-Linie (§12) */
+  header.scrolled::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -14px; height: 14px;
+    background: linear-gradient(rgba(0,0,0,.05), transparent); pointer-events: none;
+  }
+  header .small-title { font-size: 17px; font-weight: 600; text-align: center; opacity: 0; transition: opacity .2s; }
+  header.scrolled .small-title { opacity: 1; }
+
+  main { padding: calc(var(--sat) + 52px) 20px calc(96px + var(--sab)); max-width: 560px; margin: 0 auto; }
+
+  /* §15: Großer Titel – enges Leading, NEGATIVES Tracking bei großer Schrift */
+  h1.large { font-size: 34px; font-weight: 800; line-height: 1.08; letter-spacing: -0.022em; margin-bottom: 2px; }
+  .sub { color: var(--ink-2); font-size: 15px; letter-spacing: 0; margin-bottom: 18px; }
+
+  /* ---------- Tab-Bar: transluzentes Material, Inhalt scrollt darunter ---------- */
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; justify-content: space-around;
+    background: rgba(249,249,251,.72);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    border-top: .5px solid rgba(255,255,255,.4); /* helle Oberkante = Licht auf dem Material */
+    box-shadow: 0 -0.5px 0 var(--hairline);
+    padding: 8px 8px calc(6px + var(--sab));
+  }
+  nav button {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--ink-3); font-size: 10.5px; font-weight: 600; width: 88px; padding: 3px 0;
+    transition: transform .1s ease-out;
+  }
+  nav button.on { color: var(--accent); }
+  nav button:active { transform: scale(.94); } /* §1: Feedback beim Drücken, sofort */
+  nav svg { width: 26px; height: 26px; }
+
+  .card {
+    background: var(--card); border-radius: 16px; padding: 18px; margin-bottom: 14px;
+    box-shadow: 0 0.5px 1.5px rgba(0,0,0,.04);
+  }
+
+  /* ---------- Eintragen ---------- */
+  .amount {
+    text-align: center; font-size: 58px; font-weight: 800;
+    letter-spacing: -0.03em; line-height: 1.05;   /* §15: groß → enger */
+    padding: 8px 0 22px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    transition: color .15s;
+  }
+  .amount.set { color: var(--ink); }
+  .amount .cur { font-size: 30px; font-weight: 700; color: var(--ink-3); margin-left: 4px; }
+
+  .picker-btn {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 14px; padding: 14px 16px;
+    font-weight: 600; font-size: 16px; box-shadow: 0 0.5px 1.5px rgba(0,0,0,.04);
+    margin-bottom: 14px;
+    transition: transform .1s ease-out, background .1s;
+  }
+  .picker-btn:active { transform: scale(.98); background: #f7f7f9; }  /* §1 */
+  .picker-btn .chev { margin-left: auto; color: var(--ink-3); }
+
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 6px 0 14px; }
+  .keypad button {
+    font-size: 26px; font-weight: 500; padding: 13px 0; border-radius: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* §1: Highlight auf pointer-down (per JS-Klasse), nicht erst beim Loslassen */
+  .keypad button.pressed { background: rgba(60,60,67,.1); transform: scale(.96); }
+  .keypad button { transition: background .18s ease-out, transform .18s ease-out; }
+
+  .cta {
+    display: block; width: 100%; text-align: center;
+    background: var(--accent); color: #fff; font-weight: 600; font-size: 17px;
+    padding: 15px; border-radius: 14px;
+    transition: transform .1s ease-out, opacity .15s;
+  }
+  .cta:active { transform: scale(.97); }
+  .cta[disabled] { opacity: .35; pointer-events: none; }
+
+  /* ---------- Übersicht ---------- */
+  .hero-num { text-align: center; font-size: 40px; font-weight: 800; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; padding: 4px 0 14px; }
+  .bars { width: 100%; display: block; }
+  .tx { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: .5px solid var(--hairline); }
+  .tx:last-child { border-bottom: 0; }
+  .tx .emoji { font-size: 20px; width: 36px; height: 36px; border-radius: 10px; background: var(--bg); display: flex; align-items: center; justify-content: center; }
+  .tx .mid { flex: 1; min-width: 0; }
+  .tx .t1 { font-size: 15.5px; font-weight: 590; }
+  .tx .t2 { font-size: 13px; color: var(--ink-2); }
+  .tx .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .section-t { font-size: 13px; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.04em; margin: 4px 4px 8px; }
+
+  /* ---------- Sheet: echtes Material, per Feder-Physik ziehbar ---------- */
+  .scrim {
+    position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.35);
+    opacity: 0; pointer-events: none;
+  }
+  .scrim.on { pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    background: rgba(249,249,251,.85);
+    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    border-radius: 18px 18px 0 0;
+    border-top: .5px solid rgba(255,255,255,.5);
+    box-shadow: 0 -8px 40px rgba(0,0,0,.12);
+    padding: 8px 12px calc(16px + var(--sab));
+    transform: translateY(105%);
+    touch-action: none;          /* wir übernehmen die Geste selbst (1:1) */
+    will-change: transform;
+  }
+  .grab { width: 36px; height: 5px; border-radius: 2.5px; background: rgba(60,60,67,.25); margin: 4px auto 10px; }
+  .sheet h3 { font-size: 16px; font-weight: 700; text-align: center; margin-bottom: 8px; letter-spacing: -0.01em; }
+  .cat-item {
+    width: 100%; display: flex; align-items: center; gap: 14px;
+    padding: 12px 10px; border-radius: 12px; font-size: 16px; font-weight: 500; text-align: left;
+    transition: background .15s ease-out;
+  }
+  .cat-item.pressed { background: rgba(60,60,67,.1); }
+  .cat-item .emoji { font-size: 22px; width: 28px; text-align: center; }
+
+  /* App-Inhalt wird beim Sheet nach hinten gedrückt (§12: dim to focus) */
+  #app-layer { transform-origin: 50% 0; will-change: transform; }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .demo-note {
+    text-align: center; font-size: 12.5px; color: var(--ink-3); padding: 18px 20px 4px; line-height: 1.5;
+  }
+
+  /* ---------- §14: Reduzierte Bewegung & Transparenz ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    .keypad button, .picker-btn, .cta, nav button { transition: background .15s ease, opacity .15s ease; transform: none !important; }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    header.scrolled, nav, .sheet { background: #f9f9fb; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+</style>
+</head>
+<body>
+
+<header id="hdr"><div class="small-title" id="small-title">Neuer Eintrag</div></header>
+
+<div id="app-layer">
+<main>
+  <!-- ================= EINTRAGEN ================= -->
+  <section class="screen active" id="scr-entry">
+    <h1 class="large">Neuer Eintrag</h1>
+    <p class="sub">Demo im strengen Apple-Design.</p>
+
+    <div class="amount" id="amount">0,00<span class="cur">€</span></div>
+
+    <button class="picker-btn" id="btn-cat"><span id="cat-emoji">🍕</span> <span id="cat-name">Essen &amp; Trinken</span><span class="chev">›</span></button>
+
+    <div class="keypad" id="keypad">
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <span></span><button data-k="0">0</button>
+      <button data-k="back" aria-label="Löschen">⌫</button>
+    </div>
+
+    <button class="cta" id="btn-submit" disabled>Eintragen</button>
+
+    <p class="demo-note">Tasten reagieren beim <b>Berühren</b>, nicht beim Loslassen · das Kategorie-Sheet ist ein echtes Material: zieh es, wirf es, greif es mitten in der Bewegung.</p>
+  </section>
+
+  <!-- ================= ÜBERSICHT ================= -->
+  <section class="screen" id="scr-overview">
+    <h1 class="large">Übersicht</h1>
+    <p class="sub">September 2026</p>
+    <div class="card">
+      <div class="hero-num">2.294,54&#8202;€</div>
+      <svg class="bars" viewBox="0 0 520 200" role="img" aria-label="Kosten pro Monat">
+        <line x1="8" y1="100" x2="512" y2="100" stroke="rgba(60,60,67,.12)" stroke-width="1"/>
+        <line x1="8" y1="176" x2="512" y2="176" stroke="rgba(60,60,67,.2)" stroke-width="1"/>
+      </svg>
+    </div>
+    <div class="card">
+      <div class="section-t">Einträge</div>
+      <div class="tx"><div class="emoji">🛒</div><div class="mid"><div class="t1">Rewe</div><div class="t2">09.09. · Lebensmittel</div></div><span class="amt">47,12&#8202;€</span></div>
+      <div class="tx"><div class="emoji">🍕</div><div class="mid"><div class="t1">Pizza mit Leo</div><div class="t2">08.09. · Essen &amp; Trinken</div></div><span class="amt">23,50&#8202;€</span></div>
+      <div class="tx"><div class="emoji">⛽</div><div class="mid"><div class="t1">Shell</div><div class="t2">07.09. · Benzin</div></div><span class="amt">64,80&#8202;€</span></div>
+    </div>
+  </section>
+</main>
+</div>
+
+<nav>
+  <button data-scr="entry" class="on" id="nav-entry">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+    Eintragen
+  </button>
+  <button data-scr="overview" id="nav-overview">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="20" x2="5" y2="12"></line><line x1="12" y1="20" x2="12" y2="6"></line><line x1="19" y1="20" x2="19" y2="10"></line></svg>
+    Übersicht
+  </button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <h3>Kategorie</h3>
+  <div id="cat-list"></div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* =====================================================================
+   FEDER-PHYSIK (§4) – Apples Parameter: damping ratio + response.
+   Semi-implizite Integration pro Frame; von Natur aus unterbrechbar,
+   weil sie immer vom AKTUELLEN Wert und der AKTUELLEN Geschwindigkeit
+   weiterrechnet (§3).
+===================================================================== */
+function makeSpring(onUpdate) {
+  const s = { value: 0, velocity: 0, target: 0, running: false, _raf: null };
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let damping = 1, response = 0.35, lastT = 0;
+
+  function tick(t) {
+    const dt = Math.min((t - lastT) / 1000, 1 / 30); lastT = t;
+    const omega = (2 * Math.PI) / response;
+    // Federkraft + Dämpfung, semi-implizit integriert
+    const Fspring = -omega * omega * (s.value - s.target);
+    const Fdamp = -2 * damping * omega * s.velocity;
+    s.velocity += (Fspring + Fdamp) * dt;
+    s.value += s.velocity * dt;
+    // Ruhe erreicht?
+    if (Math.abs(s.velocity) < 0.05 && Math.abs(s.value - s.target) < 0.05) {
+      s.value = s.target; s.velocity = 0; s.running = false;
+      onUpdate(s.value);
+      return;
+    }
+    onUpdate(s.value);
+    s._raf = requestAnimationFrame(tick);
+  }
+
+  s.animateTo = function (target, opts = {}) {
+    s.target = target;
+    if (reduceMotion) { // §14: sanfter Sprung statt Feder
+      cancelAnimationFrame(s._raf); s.value = target; s.velocity = 0; s.running = false;
+      onUpdate(target); return;
+    }
+    damping = opts.damping ?? 1;
+    response = opts.response ?? 0.35;
+    if (opts.velocity !== undefined) s.velocity = opts.velocity; // §5: Geschwindigkeit übernehmen
+    if (!s.running) { s.running = true; lastT = performance.now(); s._raf = requestAnimationFrame(tick); }
+  };
+  s.stop = function () { cancelAnimationFrame(s._raf); s.running = false; s.velocity = 0; };
+  s.set = function (v) { s.stop(); s.value = v; onUpdate(v); };
+  return s;
+}
+
+/* Momentum-Projektion (§6) – exakt Apples Formel */
+function project(velocity, decelerationRate = 0.998) {
+  return (velocity / 1000) * decelerationRate / (1 - decelerationRate);
+}
+/* Rubber-Banding (§9) */
+function rubberband(overshoot, dimension, constant = 0.55) {
+  return (overshoot * dimension * constant) / (dimension + constant * Math.abs(overshoot));
+}
+
+/* =====================================================================
+   SHEET – 1:1-Geste (§2), unterbrechbar (§3), Velocity-Handoff (§5),
+   Projektion (§6), Rubber-Band oben (§9), Scrim & Push-Back 1:1 (§1, §12)
+===================================================================== */
+const sheet = $('sheet'), scrim = $('scrim'), appLayer = document.getElementById('app-layer');
+let sheetH = 300;
+
+const sheetSpring = makeSpring(y => {
+  const h = sheetH || 1;
+  const p = Math.max(0, Math.min(1, 1 - y / h)); // 0 = zu, 1 = offen
+  sheet.style.transform = 'translateY(' + y + 'px)';
+  scrim.style.opacity = (p * 1).toFixed(3);
+  scrim.classList.toggle('on', p > 0.02);
+  // Hintergrund wird proportional zurückgedrückt – Feedback WÄHREND der Geste
+  appLayer.style.transform = 'scale(' + (1 - p * 0.035) + ')';
+});
+
+function openSheet() {
+  sheetH = sheet.offsetHeight;
+  // Feder mit leichtem Bounce – die Geste (Tap) hat wenig Momentum,
+  // Apples Drawer-Werte: damping 0.8, response 0.3
+  sheetSpring.animateTo(0, { damping: 0.85, response: 0.34 });
+}
+function closeSheet(v0) {
+  sheetH = sheet.offsetHeight;
+  sheetSpring.animateTo(sheetH * 1.05, { damping: 1, response: 0.3, velocity: v0 });
+}
+sheetSpring.set(600);
+addEventListener('load', () => { sheetH = sheet.offsetHeight; sheetSpring.set(sheetH * 1.05); });
+
+$('btn-cat').addEventListener('click', openSheet);
+scrim.addEventListener('pointerdown', () => closeSheet());
+
+/* 1:1-Drag mit Grab-Offset, Geschwindigkeits-Historie, Interrupt */
+let drag = null;
+sheet.addEventListener('pointerdown', e => {
+  if (e.target.closest('.cat-item')) return; // Taps auf Einträge bleiben Taps
+  sheet.setPointerCapture(e.pointerId);
+  sheetSpring.stop();                              // §3: mitten im Flug greifen
+  drag = { grabY: e.clientY - sheetSpring.value,   // §2: Offset respektieren
+           hist: [{ y: e.clientY, t: performance.now() }] };
+});
+sheet.addEventListener('pointermove', e => {
+  if (!drag) return;
+  let y = e.clientY - drag.grabY;
+  if (y < 0) y = rubberband(y, sheetH);            // §9: oben weich widerstehen
+  sheetSpring.set(y);                              // 1:1, kein Lag
+  drag.hist.push({ y: e.clientY, t: performance.now() });
+  if (drag.hist.length > 6) drag.hist.shift();
+});
+function endDrag(e) {
+  if (!drag) return;
+  // Release-Velocity aus der Historie (px/s)
+  const h = drag.hist, a = h[0], b = h[h.length - 1];
+  const v = (b.t - a.t) > 1 ? (b.y - a.y) / ((b.t - a.t) / 1000) : 0;
+  drag = null;
+  // §6: dorthin animieren, wo die Geste HINGEHT – nicht, wo sie endet
+  const projected = sheetSpring.value + project(v);
+  const shouldClose = projected > sheetH * 0.5;
+  // §5: Übergabe der echten Fingergeschwindigkeit an die Feder
+  if (shouldClose) sheetSpring.animateTo(sheetH * 1.05, { damping: 1, response: 0.3, velocity: v });
+  else sheetSpring.animateTo(0, { damping: 0.85, response: 0.3, velocity: v });
+}
+sheet.addEventListener('pointerup', endDrag);
+sheet.addEventListener('pointercancel', endDrag);
+
+/* Kategorien */
+const CATS = [
+  ['🛒', 'Lebensmittel & Haushalt'], ['🍕', 'Essen & Trinken'], ['🎉', 'Freizeit'],
+  ['⛽', 'Benzin'], ['🚗', 'Carsharing & Uber'], ['👕', 'Klamotten'], ['✈️', 'Reisen'],
+];
+CATS.forEach(([emoji, name]) => {
+  const b = document.createElement('button');
+  b.className = 'cat-item';
+  b.innerHTML = '<span class="emoji">' + emoji + '</span>' + name;
+  // §1/§10: Highlight bei pointer-down, Commit bei pointer-up, Abbrechen durch Wegziehen
+  b.addEventListener('pointerdown', () => b.classList.add('pressed'));
+  b.addEventListener('pointerleave', () => b.classList.remove('pressed'));
+  b.addEventListener('pointerup', () => {
+    b.classList.remove('pressed');
+    $('cat-emoji').textContent = emoji;
+    $('cat-name').textContent = name;
+    closeSheet();
+  });
+  $('cat-list').appendChild(b);
+});
+
+/* =====================================================================
+   KEYPAD – Feedback auf pointer-down (§1), Abbruch durch Wegziehen (§10)
+===================================================================== */
+let cents = 0;
+const EUR = n => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function renderAmount() {
+  $('amount').innerHTML = EUR(cents / 100) + '<span class="cur">€</span>';
+  $('amount').classList.toggle('set', cents > 0);
+  $('btn-submit').disabled = cents === 0;
+}
+document.querySelectorAll('#keypad button').forEach(b => {
+  b.addEventListener('pointerdown', e => { b.classList.add('pressed'); b.setPointerCapture(e.pointerId); });
+  b.addEventListener('pointerleave', () => b.classList.remove('pressed'));
+  b.addEventListener('pointerup', e => {
+    if (!b.classList.contains('pressed')) return; // weggezogen = abgebrochen
+    b.classList.remove('pressed');
+    const k = b.dataset.k;
+    if (k === 'back') cents = Math.floor(cents / 10);
+    else { const next = cents * 10 + Number(k); if (next <= 9999999) cents = next; }
+    renderAmount();
+  });
+});
+renderAmount();
+
+/* =====================================================================
+   TABS + Scroll-Edge (§12) — Titel wechselt, Chrome materialisiert beim Scrollen
+===================================================================== */
+function show(scr) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $('scr-' + scr).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.scr === scr));
+  $('small-title').textContent = scr === 'entry' ? 'Neuer Eintrag' : 'Übersicht';
+  scrollTo(0, 0);
+}
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.scr)));
+addEventListener('scroll', () => $('hdr').classList.toggle('scrolled', scrollY > 24), { passive: true });
+
+/* Demo-Balken für die Übersicht */
+(() => {
+  const svg = document.querySelector('#scr-overview svg');
+  const vals = [.55,.6,.5,.62,.58,.66,.52,.7,.6,.56,.64,.78];
+  vals.forEach((v, i) => {
+    const h = 150 * v, x = 14 + i * 42;
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', x); r.setAttribute('y', 176 - h);
+    r.setAttribute('width', 26); r.setAttribute('height', h); r.setAttribute('rx', 5);
+    r.setAttribute('fill', i === 11 ? '#0a84ff' : 'rgba(10,132,255,.35)');
+    svg.appendChild(r);
+  });
+})();
+</script>
+</body>
+</html>
