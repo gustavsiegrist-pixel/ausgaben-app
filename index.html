@@ -473,6 +473,7 @@ const catOpen = { exp: false, inc: false }; // "Mehr anzeigen"-Zustand der Kateg
 let wealthInfo = null;       // Portfoliostand (kommt mit der Overview-Antwort)
 let recOrders = null;        // Daueraufträge-Cache
 let recMode = 'orders';      // 'orders' | 'portfolio'
+const pendingDeletes = new Set(); // gelöschte Einträge, deren Server-Sync noch läuft
 
 try { cfg = JSON.parse(localStorage.getItem('cfg') || 'null'); } catch (e) {}
 // Alte Logins (vor Multi-Account) haben keinen Benutzernamen → neu anmelden
@@ -874,7 +875,7 @@ async function loadOverview() {
   else body.innerHTML = '<div class="spin"></div>';
   try {
     const data = await api('overview');
-    entries = data.entries;
+    entries = data.entries.filter(e => !pendingDeletes.has(e.id));
     if (data.wealth !== undefined) { wealthInfo = data.wealth; saveExtras(); }
     if (cfg.url !== 'demo') {
       localStorage.setItem('cache', JSON.stringify(entries));
@@ -1075,14 +1076,25 @@ async function deleteEntry(id) {
   const e = (entries || []).find(x => x.id === id);
   if (!e) return;
   if (!confirm('Eintrag löschen?\n' + EUR.format(e.betrag) + (e.beschreibung ? ' – ' + e.beschreibung : ''))) return;
+
+  // Optimistisch: sofort aus der Ansicht nehmen, Server-Sync im Hintergrund
+  entries = entries.filter(x => x.id !== id);
+  pendingDeletes.add(id);
+  if (cfg.url !== 'demo') localStorage.setItem('cache', JSON.stringify(entries));
+  renderOverview();
+  toast('Eintrag gelöscht');
+
   try {
     await api('delete', { id });
-    entries = entries.filter(x => x.id !== id);
-    if (cfg.url !== 'demo') localStorage.setItem('cache', JSON.stringify(entries));
-    renderOverview();
-    toast('Eintrag gelöscht');
   } catch (err) {
-    toast('Fehler: ' + err.message);
+    // Fehlgeschlagen → Eintrag wiederherstellen
+    entries.push(e);
+    entries.sort((a, b) => a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : 0);
+    if (cfg.url !== 'demo') localStorage.setItem('cache', JSON.stringify(entries));
+    if ($('scr-overview').classList.contains('active')) renderOverview();
+    toast('Löschen fehlgeschlagen: ' + err.message);
+  } finally {
+    pendingDeletes.delete(id);
   }
 }
 
@@ -1133,7 +1145,7 @@ async function loadRecurring() {
 function prefetchAll() {
   if (!cfg) return;
   api('overview').then(data => {
-    entries = data.entries;
+    entries = data.entries.filter(e => !pendingDeletes.has(e.id));
     if (data.wealth !== undefined) { wealthInfo = data.wealth; saveExtras(); }
     if (cfg.url !== 'demo') localStorage.setItem('cache', JSON.stringify(entries));
     if ($('scr-overview').classList.contains('active')) renderOverview();
