@@ -234,9 +234,13 @@
   .welcome .w-sub { font-size: 17px; color: var(--ink-2); line-height: 1.4; animation: wup .5s ease .15s backwards; }
   @keyframes wup { from { opacity: 0; transform: translateY(10px); } }
 
-  /* Sanfter Übergang beim Tab-/Swipe-Wechsel */
+  /* Sanfter, richtungsabhängiger Übergang beim Tab-/Swipe-Wechsel */
   .screen.active { animation: screenfade .18s ease; }
+  .screen.active.anim-next { animation: slideNext .22s cubic-bezier(.25,.8,.35,1); }
+  .screen.active.anim-prev { animation: slidePrev .22s cubic-bezier(.25,.8,.35,1); }
   @keyframes screenfade { from { opacity: .5; } to { opacity: 1; } }
+  @keyframes slideNext { from { opacity: .55; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+  @keyframes slidePrev { from { opacity: .55; transform: translateX(-26px); } to { opacity: 1; transform: none; } }
 
   .toast {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(100px + var(--sab));
@@ -610,9 +614,12 @@ function demoApi(action, extra) {
 }
 
 /* ================= Navigation ================= */
-function show(scr) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  $('scr-' + scr).classList.add('active');
+function show(scr, dir) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active', 'anim-next', 'anim-prev'));
+  const el = $('scr-' + scr);
+  if (dir === 'next') el.classList.add('anim-next');
+  else if (dir === 'prev') el.classList.add('anim-prev');
+  el.classList.add('active');
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.scr === scr));
   $('nav').style.display = scr === 'setup' ? 'none' : 'flex';
   if (scr === 'overview') loadOverview();
@@ -620,7 +627,12 @@ function show(scr) {
   if (scr === 'export') fillStatus();
   window.scrollTo(0, 0);
 }
-document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => show(b.dataset.scr)));
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+  const cur = document.querySelector('.screen.active');
+  const from = TAB_ORDER.indexOf(cur ? cur.id.replace('scr-', '') : '');
+  const to = TAB_ORDER.indexOf(b.dataset.scr);
+  show(b.dataset.scr, from === -1 || to === from ? undefined : (to > from ? 'next' : 'prev'));
+}));
 
 // Wisch-Gesten: horizontal zwischen den Tabs wechseln
 const TAB_ORDER = ['entry', 'overview', 'recurring', 'export'];
@@ -645,7 +657,7 @@ document.addEventListener('touchend', e => {
   const idx = TAB_ORDER.indexOf(cur ? cur.id.replace('scr-', '') : '');
   if (idx === -1) return; // z. B. Setup-Bildschirm
   const next = TAB_ORDER[idx + (dx < 0 ? 1 : -1)];
-  if (next) show(next);
+  if (next) show(next, dx < 0 ? 'next' : 'prev');
 }, { passive: true });
 
 /* ================= Setup ================= */
