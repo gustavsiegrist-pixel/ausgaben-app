@@ -372,6 +372,8 @@
   </div>
   <div class="card">
     <div class="settings-row"><span class="k">App-Version</span><span id="st-version">–</span></div>
+    <div class="settings-row"><span class="k">Letzte Sync-Dauer</span><span id="st-sync">–</span></div>
+    <div class="settings-row"><span class="k">Einträge im Cache</span><span id="st-cache">–</span></div>
     <div class="settings-row"><span class="k">Status</span><span id="st-status">–</span></div>
     <div class="settings-row"><span class="k">Account</span><span id="st-user">–</span></div>
     <div class="settings-row"><span class="k">Sheet</span><span id="st-sheet">–</span></div>
@@ -437,7 +439,7 @@
 // Zentrale Backend-Adresse – für alle Nutzer gleich, daher fest hinterlegt.
 // Ändert sich nur, falls je eine komplett NEUE Bereitstellung nötig wird.
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzCQvZqm83wYEQ2nsr5KAO0vW5pydLKx7eevQD7MmXdeOLKBDjL_q3m1NBK7X7mJ2y1/exec';
-const APP_VERSION = '2.1'; // bei jedem App-Update hochzählen – sichtbar im Export-Tab
+const APP_VERSION = '2.2'; // bei jedem App-Update hochzählen – sichtbar im Export-Tab
 
 const CATEGORIES = [
   { key: 'Lebensmittel / Haushalt',  label: 'Lebensmittel & Haushalt', emoji: '🛒' },
@@ -884,6 +886,41 @@ function monthLabel(key, short) {
   return short ? name.slice(0, 3) : name + ' ' + y;
 }
 
+/* Laufende Anfragen wiederverwenden statt sie zu duplizieren – mehrere
+   gleichzeitige identische Aufrufe machen Apps Script nur langsamer. */
+const inflight = { overview: null, extras: null };
+const diag = { overviewMs: null, extrasMs: null, lastSync: null };
+
+function fetchOverview() {
+  if (inflight.overview) return inflight.overview;
+  const t0 = performance.now();
+  inflight.overview = api('overview').then(data => {
+    diag.overviewMs = Math.round(performance.now() - t0);
+    diag.lastSync = new Date();
+    entries = data.entries.filter(e => !pendingDeletes.has(e.id));
+    if (data.wealth !== undefined) { wealthInfo = data.wealth; saveExtras(); }
+    if (cfg.url !== 'demo') {
+      localStorage.setItem('cache', JSON.stringify(entries));
+      if (data.sheetUrl) { cfg.sheetUrl = data.sheetUrl; localStorage.setItem('cfg', JSON.stringify(cfg)); }
+    }
+    return data;
+  }).finally(() => { inflight.overview = null; });
+  return inflight.overview;
+}
+
+function fetchExtras() {
+  if (inflight.extras) return inflight.extras;
+  const t0 = performance.now();
+  inflight.extras = api('extras').then(data => {
+    diag.extrasMs = Math.round(performance.now() - t0);
+    recOrders = data.orders || [];
+    if (data.wealth !== undefined) wealthInfo = data.wealth;
+    saveExtras();
+    return data;
+  }).finally(() => { inflight.extras = null; });
+  return inflight.extras;
+}
+
 async function loadOverview() {
   const body = $('ov-body');
   flushOutbox();
@@ -891,13 +928,7 @@ async function loadOverview() {
   if ((entries && entries.length) || outbox.length) renderOverview();
   else body.innerHTML = '<div class="spin"></div>';
   try {
-    const data = await api('overview');
-    entries = data.entries.filter(e => !pendingDeletes.has(e.id));
-    if (data.wealth !== undefined) { wealthInfo = data.wealth; saveExtras(); }
-    if (cfg.url !== 'demo') {
-      localStorage.setItem('cache', JSON.stringify(entries));
-      if (data.sheetUrl) { cfg.sheetUrl = data.sheetUrl; localStorage.setItem('cfg', JSON.stringify(cfg)); }
-    }
+    await fetchOverview();
     renderOverview();
   } catch (err) {
     if ((entries && entries.length) || outbox.length) toast('Aktualisierung fehlgeschlagen: ' + err.message);
@@ -1147,10 +1178,7 @@ async function loadRecurring() {
   if (recOrders === null) $('rec-body').innerHTML = '<div class="spin"></div>';
   else renderRecurring(); // Cache sofort zeigen
   try {
-    const data = await api('extras');
-    recOrders = data.orders || [];
-    if (data.wealth !== undefined) wealthInfo = data.wealth;
-    saveExtras();
+    await fetchExtras();
     renderRecurring();
   } catch (err) {
     if (recOrders === null) $('rec-body').innerHTML = '<div class="card empty">Konnte Daten nicht laden.<br>' + esc(err.message) + '</div>';
@@ -1159,18 +1187,14 @@ async function loadRecurring() {
 }
 
 /** Nach dem Login beide Bereiche im Hintergrund vorladen – Tabwechsel ist dann sofort da. */
+let lastPrefetch = 0;
 function prefetchAll() {
   if (!cfg) return;
-  api('overview').then(data => {
-    entries = data.entries.filter(e => !pendingDeletes.has(e.id));
-    if (data.wealth !== undefined) { wealthInfo = data.wealth; saveExtras(); }
-    if (cfg.url !== 'demo') localStorage.setItem('cache', JSON.stringify(entries));
+  lastPrefetch = Date.now();
+  fetchOverview().then(() => {
     if ($('scr-overview').classList.contains('active')) renderOverview();
   }).catch(() => {});
-  api('extras').then(data => {
-    recOrders = data.orders || [];
-    if (data.wealth !== undefined) wealthInfo = data.wealth;
-    saveExtras();
+  fetchExtras().then(() => {
     if ($('scr-recurring').classList.contains('active')) renderRecurring();
   }).catch(() => {});
 }
@@ -1313,6 +1337,8 @@ async function savePortfolio() {
 /* ================= Export ================= */
 async function fillStatus() {
   $('st-version').textContent = APP_VERSION;
+  $('st-sync').textContent = diag.overviewMs !== null ? (diag.overviewMs / 1000).toFixed(1).replace('.', ',') + ' s' : '–';
+  $('st-cache').textContent = entries ? String(entries.length) : '0';
   $('st-status').textContent = cfg.url === 'demo' ? 'Demo-Modus' : 'Verbunden';
   $('st-user').textContent = cfg.user || (cfg.url === 'demo' ? 'Demo' : '–');
   $('lnk-sheet').href = cfg.sheetUrl || '#';
@@ -1356,9 +1382,12 @@ show(cfg ? 'entry' : 'setup');
 flushOutbox();
 if (cfg) prefetchAll(); // beim Start schon laden, damit Tabwechsel sofort geht
 
-// Beim Zurückkehren aus dem Hintergrund still aktualisieren
+// Beim Zurückkehren aus dem Hintergrund still aktualisieren (max. alle 20 s)
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && cfg) { flushOutbox(); prefetchAll(); }
+  if (!document.hidden && cfg) {
+    flushOutbox();
+    if (Date.now() - lastPrefetch > 20000) prefetchAll();
+  }
 });
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
