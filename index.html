@@ -206,6 +206,21 @@
   .tx .amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tx .del { color: var(--muted); padding: 8px; margin-right: -8px; }
   .empty { text-align: center; color: var(--muted); padding: 26px 0; font-size: 14px; }
+  /* ---------- Skeleton-Loader ---------- */
+  .sk {
+    border-radius: 8px;
+    background: linear-gradient(90deg, #ececea 25%, #f7f7f5 50%, #ececea 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.3s infinite linear;
+  }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .sk-title { height: 20px; width: 55%; margin: 6px auto 16px; }
+  .sk-hero { height: 42px; width: 48%; margin: 0 auto 20px; border-radius: 10px; }
+  .sk-chart { height: 230px; border-radius: 12px; }
+  .sk-line { height: 18px; margin: 16px 0; }
+  .sk-line.w60 { width: 60%; }
+  .sk-line.w80 { width: 80%; }
+
   .spin {
     width: 26px; height: 26px; border-radius: 50%; margin: 40px auto;
     border: 3px solid var(--grid); border-top-color: var(--accent);
@@ -439,7 +454,7 @@
 // Zentrale Backend-Adresse – für alle Nutzer gleich, daher fest hinterlegt.
 // Ändert sich nur, falls je eine komplett NEUE Bereitstellung nötig wird.
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzCQvZqm83wYEQ2nsr5KAO0vW5pydLKx7eevQD7MmXdeOLKBDjL_q3m1NBK7X7mJ2y1/exec';
-const APP_VERSION = '2.2'; // bei jedem App-Update hochzählen – sichtbar im Export-Tab
+const APP_VERSION = '2.3'; // bei jedem App-Update hochzählen – sichtbar im Export-Tab
 
 const CATEGORIES = [
   { key: 'Lebensmittel / Haushalt',  label: 'Lebensmittel & Haushalt', emoji: '🛒' },
@@ -921,12 +936,22 @@ function fetchExtras() {
   return inflight.extras;
 }
 
+/** Skeleton-Platzhalter im Layout der Übersicht (statt Spinner). */
+function skeletonOverview() {
+  return '<div class="card"><div class="sk sk-title"></div><div class="sk sk-hero"></div><div class="sk sk-chart"></div></div>' +
+    '<div class="card">' + '<div class="sk sk-line"></div><div class="sk sk-line w80"></div><div class="sk sk-line w60"></div><div class="sk sk-line w80"></div><div class="sk sk-line w60"></div>' + '</div>';
+}
+function skeletonRecurring() {
+  return '<div class="card"><div class="sk sk-line"></div><div class="sk sk-line w80"></div><div class="sk sk-line"></div><div class="sk sk-line w60"></div></div>' +
+    '<div class="card"><div class="sk sk-line w80"></div><div class="sk sk-line w60"></div></div>';
+}
+
 async function loadOverview() {
   const body = $('ov-body');
   flushOutbox();
   // Cache sofort anzeigen (falls vorhanden), aber immer frisch nachladen
   if ((entries && entries.length) || outbox.length) renderOverview();
-  else body.innerHTML = '<div class="spin"></div>';
+  else body.innerHTML = skeletonOverview();
   try {
     await fetchOverview();
     renderOverview();
@@ -1175,7 +1200,7 @@ document.querySelectorAll('#rec-mode button').forEach(b => b.addEventListener('c
 }));
 
 async function loadRecurring() {
-  if (recOrders === null) $('rec-body').innerHTML = '<div class="spin"></div>';
+  if (recOrders === null) $('rec-body').innerHTML = skeletonRecurring();
   else renderRecurring(); // Cache sofort zeigen
   try {
     await fetchExtras();
