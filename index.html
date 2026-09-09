@@ -371,6 +371,7 @@
     <a class="linkish" id="lnk-sheet" href="#" target="_blank" rel="noopener">Google Sheet im Browser öffnen ↗</a>
   </div>
   <div class="card">
+    <div class="settings-row"><span class="k">App-Version</span><span id="st-version">–</span></div>
     <div class="settings-row"><span class="k">Status</span><span id="st-status">–</span></div>
     <div class="settings-row"><span class="k">Account</span><span id="st-user">–</span></div>
     <div class="settings-row"><span class="k">Sheet</span><span id="st-sheet">–</span></div>
@@ -436,6 +437,7 @@
 // Zentrale Backend-Adresse – für alle Nutzer gleich, daher fest hinterlegt.
 // Ändert sich nur, falls je eine komplett NEUE Bereitstellung nötig wird.
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzCQvZqm83wYEQ2nsr5KAO0vW5pydLKx7eevQD7MmXdeOLKBDjL_q3m1NBK7X7mJ2y1/exec';
+const APP_VERSION = '2.1'; // bei jedem App-Update hochzählen – sichtbar im Export-Tab
 
 const CATEGORIES = [
   { key: 'Lebensmittel / Haushalt',  label: 'Lebensmittel & Haushalt', emoji: '🛒' },
@@ -1310,6 +1312,7 @@ async function savePortfolio() {
 
 /* ================= Export ================= */
 async function fillStatus() {
+  $('st-version').textContent = APP_VERSION;
   $('st-status').textContent = cfg.url === 'demo' ? 'Demo-Modus' : 'Verbunden';
   $('st-user').textContent = cfg.user || (cfg.url === 'demo' ? 'Demo' : '–');
   $('lnk-sheet').href = cfg.sheetUrl || '#';
